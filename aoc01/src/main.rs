@@ -51,10 +51,14 @@ fn part2(rotations: &[i32]) -> Result<u32> {
     let mut password = 0;
 
     for rot in rotations {
+        // 计算一定会经过 0 刻度的整圈次数
         password += rot.unsigned_abs() / 100;
         let rot = rot % 100;
         let temp = dial + rot;
-        password += (dial != 100 && temp >= 100) as u32 + (dial != 0 && temp <= 0) as u32;
+        // 当起点不是 0 刻度时，
+        // 向左或向右旋转超过或位于刻度边界 0 或 100 时，
+        // 一定经过一次 0 刻度
+        password += (dial != 0 && (temp >= 100 || temp <= 0)) as u32;
 
         dial = temp.rem_euclid(100);
     }
