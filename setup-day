@@ -95,6 +95,6 @@ EOM
 
 # #[test]
 # fn real_input() {
-#     let input = std::fs::read_to_string("input/input.txt").unwrap();
+#     let input = include_str!("../input/input.txt");
 #     assert_eq!(2, 2);
 # }
