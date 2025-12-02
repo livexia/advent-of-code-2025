@@ -54,6 +54,18 @@ fn part2(rotations: &[i32]) -> Result<u32> {
 
 这个方法存在一种情况，那就是如果区间的数字长度不一致，比如区间 95-115 就不容易寻找了，当然可以把区间进行拆分，95-115 变成 95-99 和 100-115 两个区间，分开寻找即可。
 
+**效率对比**
+
+```
+part1: 26255179562
+> Time elapsed is: 22.953333ms
+part2: 31680313976
+> Time elapsed is: 37.9495ms
+part1 by step: 26255179562
+> Time elapsed is: 58.208µs
+part2 by step: 31680313976
+> Time elapsed is: 70.834µs
+```
 
 渐进查找主要代码
 ```rust
