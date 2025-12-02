@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::error::Error;
 use std::io::{self, Read};
 use std::time::Instant;
@@ -79,6 +80,82 @@ fn part2(ranges: &[(usize, usize)]) -> Result<usize> {
     Ok(ids)
 }
 
+fn split_range(start: usize, end: usize) -> Vec<(usize, usize)> {
+    let (start_l, end_l) = (start.ilog10(), end.ilog10());
+    if start_l < end_l {
+        let mut ranges = vec![];
+        let mut start = start;
+        for i in start_l..=end_l {
+            let new_end = 10usize.pow(i + 1) - 1;
+            ranges.push((start, new_end.min(end)));
+            start = new_end + 1;
+        }
+        ranges
+    } else {
+        vec![(start, end)]
+    }
+}
+
+fn find_invalid(start: usize, end: usize, base: u32) -> Vec<usize> {
+    assert_eq!(start.ilog10(), end.ilog10());
+    let l = start.ilog10() + 1;
+    if !l.is_multiple_of(base) {
+        return vec![];
+    }
+    let (start_left, end_left) = (start / 10usize.pow(l - base), end / 10usize.pow(l - base));
+    let mut invalids = Vec::new();
+    for s in start_left..=end_left {
+        let n = (0..l)
+            .step_by(base as usize)
+            .fold(0, |n, i| n + s * 10usize.pow(i));
+        if start <= n && n <= end {
+            invalids.push(n);
+        }
+    }
+    invalids
+}
+
+fn part1_step(ranges: &[(usize, usize)]) -> Result<usize> {
+    let _start = Instant::now();
+
+    let mut ids = 0;
+
+    for &(start, end) in ranges {
+        for (start, end) in split_range(start, end) {
+            let l = start.ilog10() + 1;
+            if l % 2 == 0 {
+                ids += find_invalid(start, end, l / 2).iter().sum::<usize>()
+            }
+        }
+    }
+
+    println!("part1 by step: {ids}");
+    println!("> Time elapsed is: {:?}", _start.elapsed());
+    Ok(ids)
+}
+
+fn part2_step(ranges: &[(usize, usize)]) -> Result<usize> {
+    let _start = Instant::now();
+
+    let mut invalids = HashSet::new();
+
+    for &(start, end) in ranges {
+        for (start, end) in split_range(start, end) {
+            let l = start.ilog10() + 1;
+            for base in 1..=l / 2 {
+                if l % base == 0 {
+                    invalids.extend(find_invalid(start, end, base).iter());
+                }
+            }
+        }
+    }
+    let ids = invalids.iter().sum::<usize>();
+
+    println!("part2 by step: {ids}");
+    println!("> Time elapsed is: {:?}", _start.elapsed());
+    Ok(ids)
+}
+
 fn main() -> Result<()> {
     let mut input = String::new();
     io::stdin().read_to_string(&mut input)?;
@@ -87,6 +164,29 @@ fn main() -> Result<()> {
 
     part1(&ranges)?;
     part2(&ranges)?;
+
+    part1_step(&ranges)?;
+    part2_step(&ranges)?;
+    Ok(())
+}
+
+#[test]
+fn split_range_test() -> Result<()> {
+    assert_eq!(split_range(90, 115), vec![(90, 99), (100, 115)]);
+    assert_eq!(split_range(103, 115), vec![(103, 115)]);
+    assert_eq!(
+        split_range(90, 1215),
+        vec![(90, 99), (100, 999), (1000, 1215)]
+    );
+    Ok(())
+}
+
+#[test]
+fn find_invalid_test() -> Result<()> {
+    assert_eq!(find_invalid(90, 99, 1), vec![99]);
+    assert_eq!(find_invalid(101, 120, 1), vec![111]);
+    assert_eq!(find_invalid(38593856, 38593862, 4), vec![38593859]);
+    assert_eq!(find_invalid(11, 22, 1), vec![11, 22]);
     Ok(())
 }
 
@@ -99,6 +199,9 @@ fn example_input() -> Result<()> {
     let ranges = parse_input(input)?;
     assert_eq!(part1(&ranges).unwrap(), 1227775554);
     assert_eq!(part2(&ranges).unwrap(), 4174379265);
+
+    assert_eq!(part1_step(&ranges).unwrap(), 1227775554);
+    assert_eq!(part2_step(&ranges).unwrap(), 4174379265);
     Ok(())
 }
 
@@ -108,5 +211,8 @@ fn real_input() -> Result<()> {
     let ranges = parse_input(input)?;
     assert_eq!(part1(&ranges).unwrap(), 26255179562);
     assert_eq!(part2(&ranges).unwrap(), 31680313976);
+
+    assert_eq!(part1_step(&ranges).unwrap(), 26255179562);
+    assert_eq!(part2_step(&ranges).unwrap(), 31680313976);
     Ok(())
 }
