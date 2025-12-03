@@ -134,6 +134,8 @@ fn find_largest_joltage(battery: &[usize], number: usize) -> usize {
 }
 ```
 
+这个算法还可以进行剪枝，因为输入的数字序列限制，实际上如果搜索到最大数字为 9 就不需要继续搜索了，这可以进行一定的剪枝，但是我的实现用了 for_each 就具体实现了。
+
 看到一个基本思路一致，但是实现上不同的方法 [ropewalker](https://www.reddit.com/r/adventofcode/comments/1pcvaj4/comment/ns0smcw) [code](https://github.com/ropewalker/advent_of_code_2025/blob/master/src/day03.rs) ，通过滑动限定长度窗口，依次取得最大值，实现不同但算法是一样的，效率应该也没有差别。
 
 目前我的实现在查找过程中实际上存在大量的浪费，因为必须要比较到最后才能确定最大值，而每次查找最大值时都进行了一次。社区上也有人使用 DP 进行优化这个过程，即在一次比较中不断记录当前位置到末尾处的最大值，具体我就不实现了，做一下分析。
