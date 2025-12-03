@@ -48,6 +48,36 @@ fn part1(batteries: &[Vec<usize>]) -> Result<usize> {
     Ok(joltage)
 }
 
+fn find_largest_joltage_part2(battery: &[usize], number: usize) -> usize {
+    let length = battery.len();
+    let mut joltage = 0;
+    let mut next_battery = 0;
+    for l in (1..number).rev() {
+        let mut max_battery = 0;
+        (next_battery..(length - l)).for_each(|left| {
+            if battery[left] > max_battery {
+                max_battery = battery[left];
+                next_battery = left + 1;
+            }
+        });
+        joltage = joltage * 10 + max_battery;
+    }
+    joltage * 10 + battery[next_battery..].iter().max().unwrap()
+}
+
+fn part2(batteries: &[Vec<usize>]) -> Result<usize> {
+    let _start = Instant::now();
+
+    let joltage = batteries
+        .iter()
+        .map(|b| find_largest_joltage_part2(b, 12))
+        .sum();
+
+    println!("part 2: {joltage}");
+    println!("> Time elapsed is: {:?}", _start.elapsed());
+    Ok(joltage)
+}
+
 fn main() -> Result<()> {
     let mut input = String::new();
     io::stdin().read_to_string(&mut input)?;
@@ -55,7 +85,7 @@ fn main() -> Result<()> {
     let batteries = parse_input(input)?;
 
     part1(&batteries)?;
-    // part2()?;
+    part2(&batteries)?;
     Ok(())
 }
 
@@ -67,6 +97,7 @@ fn example_input() -> Result<()> {
 818181911112111";
     let batteries = parse_input(input)?;
     assert_eq!(part1(&batteries).unwrap(), 357);
+    assert_eq!(part2(&batteries).unwrap(), 3121910778619);
     Ok(())
 }
 
@@ -75,5 +106,6 @@ fn real_input() -> Result<()> {
     let input = std::fs::read_to_string("input/input.txt").unwrap();
     let batteries = parse_input(input)?;
     assert_eq!(part1(&batteries).unwrap(), 16927);
+    assert_eq!(part2(&batteries).unwrap(), 167384358365132);
     Ok(())
 }
