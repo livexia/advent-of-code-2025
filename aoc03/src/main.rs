@@ -23,36 +23,11 @@ fn parse_input<T: AsRef<str>>(input: T) -> Result<Vec<Vec<usize>>> {
         .collect())
 }
 
-fn find_largest_joltage(battery: &[usize]) -> usize {
-    let length = battery.len();
-    let mut left = 0;
-    let mut joltage = 0;
-    let mut right = 0;
-    while left < length - 1 {
-        if battery[left] > joltage {
-            joltage = battery[left];
-            right = left;
-        }
-        left += 1;
-    }
-    joltage * 10 + battery[right + 1..].iter().max().unwrap()
-}
-
-fn part1(batteries: &[Vec<usize>]) -> Result<usize> {
-    let _start = Instant::now();
-
-    let joltage = batteries.iter().map(|b| find_largest_joltage(b)).sum();
-
-    println!("part 1: {joltage}");
-    println!("> Time elapsed is: {:?}", _start.elapsed());
-    Ok(joltage)
-}
-
-fn find_largest_joltage_part2(battery: &[usize], number: usize) -> usize {
+fn find_largest_joltage(battery: &[usize], number: usize) -> usize {
     let length = battery.len();
     let mut joltage = 0;
     let mut next_battery = 0;
-    for l in (1..number).rev() {
+    for l in (0..number).rev() {
         let mut max_battery = 0;
         (next_battery..(length - l)).for_each(|left| {
             if battery[left] > max_battery {
@@ -62,16 +37,23 @@ fn find_largest_joltage_part2(battery: &[usize], number: usize) -> usize {
         });
         joltage = joltage * 10 + max_battery;
     }
-    joltage * 10 + battery[next_battery..].iter().max().unwrap()
+    joltage
+}
+
+fn part1(batteries: &[Vec<usize>]) -> Result<usize> {
+    let _start = Instant::now();
+
+    let joltage = batteries.iter().map(|b| find_largest_joltage(b, 2)).sum();
+
+    println!("part 1: {joltage}");
+    println!("> Time elapsed is: {:?}", _start.elapsed());
+    Ok(joltage)
 }
 
 fn part2(batteries: &[Vec<usize>]) -> Result<usize> {
     let _start = Instant::now();
 
-    let joltage = batteries
-        .iter()
-        .map(|b| find_largest_joltage_part2(b, 12))
-        .sum();
+    let joltage = batteries.iter().map(|b| find_largest_joltage(b, 12)).sum();
 
     println!("part 2: {joltage}");
     println!("> Time elapsed is: {:?}", _start.elapsed());
