@@ -113,7 +113,7 @@ fn find_invalid(start: usize, end: usize, base: u32) -> Vec<usize> {
 
 两个部分对于子串的长度要求不同，但是思路是一致的。从左到右依次搜索字串最大值的过程中，需要记录第一次遇到最大值的元素位置，而非其他可能遇到最大值的位置，这样可以避免影响后续元素最大值搜索。参考序列 98975，需要寻找长度为 2 的最大子串，a 确定搜索到的最大值为 9，如果 a 记录的最大值位置不为 0 而为 2 ，那么搜索 b 时就会从位置 3 开始搜索，最后得到子串为 97 ，是错误结果。
 
-核心代码
+贪心算法核心代码
 
 ```rust
 fn find_largest_joltage(battery: &[usize], number: usize) -> usize {
@@ -133,3 +133,42 @@ fn find_largest_joltage(battery: &[usize], number: usize) -> usize {
     joltage
 }
 ```
+
+看到一个基本思路一致，但是实现上不同的方法 [ropewalker](https://www.reddit.com/r/adventofcode/comments/1pcvaj4/comment/ns0smcw) [code](https://github.com/ropewalker/advent_of_code_2025/blob/master/src/day03.rs) ，通过滑动限定长度窗口，依次取得最大值，实现不同但算法是一样的，效率应该也没有差别。
+
+目前我的实现在查找过程中实际上存在大量的浪费，因为必须要比较到最后才能确定最大值，而每次查找最大值时都进行了一次。社区上也有人使用 DP 进行优化这个过程，即在一次比较中不断记录当前位置到末尾处的最大值，具体我就不实现了，做一下分析。
+
+阅读社区上他人的动态规划代码 [michel-kraemer](https://github.com/michel-kraemer/adventofcode-rust/blob/main/2025/day03/src/main.rs)，这个实现使用的是自底向上的动态规划，过程中数组 dp 记录的是，长度为 len 的子串从 i 开始的最大子串，转移方程是 dp[len][i] = max(number[i]*mul + dp[len - 1][i + 1])，dp 从长度 1 以及从数字序列最后开始计算。
+
+参考核心代码
+
+```rust
+fn dp_find_largest_joltage(battery: &[usize], number: usize) -> usize {
+    let length = battery.len();
+    let mut dp = vec![vec![0; length + 1]; number + 1];
+    let mut mul = 1;
+    for len in 1..=number {
+        let mut max = 0;
+        for (i, &b) in battery.iter().enumerate().take(length - len + 1).rev() {
+            max = max.max(b * mul + dp[len - 1][i + 1]);
+            dp[len][i] = max;
+        }
+        mul *= 10;
+    }
+    dp[number][0]
+}
+```
+
+理论上 dp 应该要能减少比较的次数，但是这个实现实际的运行效率远不如我的暴力法，对比核心代码实际可以发现比较的次数并没有减少，虽然运行时都是 O(Nk)，N是序列长度，k是子串长度，但是增加了数组操作，整体反而增加了计算成本。比较次数没有减少，是因为每次计算 dp 时，依旧需要从初始位置开始比对到当前的结尾位置，冗余的比较依旧存在。
+
+动态规划算法的核心
+
+- dp[len][i]=从 battery[i..] 中选择 len 个数字，保持相对顺序串联得到的最大值。
+- 边界条件（已初始化）：dp[0][i]=0：从任何位置开始选择 0 个数字，结果都是 0。
+- 外部循环：按长度 (len) 迭代 `for len in 1..=number` 这个循环是按构建数字的位数从小到大进行计算。DP 算法的关键是利用小规模子问题的解来推导大规模问题的解。在这里，要计算 dp[len][i]，我们必须先知道 dp[len−1][j] 的值。
+- 内部循环：按起始索引 (i) 迭代 `for (i, &b) in battery.iter().enumerate().take(length - len + 1).rev()`
+- 优化原理：当我们在计算 dp[len][i] 时，我们在考虑从 battery[i..] 中选择 len 个数字。有两种情况：
+    - 选择 battery[i] 作为第一个数字： 得到的数字是 battery[i]⋅mul+dp[len−1][i+1]。
+    - 不选择 battery[i] 作为第一个数字： 这意味着第一个数字是从 battery[i+1..] 中选的，所以这等价于 dp[len][i+1]。
+
+当前解决的这个特定问题，贪心算法在运行效率（常数时间和空间）上是更优的选择。但在算法设计的普适性上，DP 算法则更为强大。

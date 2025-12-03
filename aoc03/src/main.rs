@@ -40,6 +40,21 @@ fn find_largest_joltage(battery: &[usize], number: usize) -> usize {
     joltage
 }
 
+fn dp_find_largest_joltage(battery: &[usize], number: usize) -> usize {
+    let length = battery.len();
+    let mut dp = vec![vec![0; length + 1]; number + 1];
+    let mut mul = 1;
+    for len in 1..=number {
+        let mut max = 0;
+        for (i, &b) in battery.iter().enumerate().take(length - len + 1).rev() {
+            max = max.max(b * mul + dp[len - 1][i + 1]);
+            dp[len][i] = max;
+        }
+        mul *= 10;
+    }
+    dp[number][0]
+}
+
 fn part1(batteries: &[Vec<usize>]) -> Result<usize> {
     let _start = Instant::now();
 
@@ -60,6 +75,18 @@ fn part2(batteries: &[Vec<usize>]) -> Result<usize> {
     Ok(joltage)
 }
 
+fn part2_dp(batteries: &[Vec<usize>]) -> Result<usize> {
+    let _start = Instant::now();
+
+    let joltage = batteries
+        .iter()
+        .map(|b| dp_find_largest_joltage(b, 12))
+        .sum();
+
+    println!("part 2 with dp: {joltage}");
+    println!("> Time elapsed is: {:?}", _start.elapsed());
+    Ok(joltage)
+}
 fn main() -> Result<()> {
     let mut input = String::new();
     io::stdin().read_to_string(&mut input)?;
@@ -68,6 +95,7 @@ fn main() -> Result<()> {
 
     part1(&batteries)?;
     part2(&batteries)?;
+    part2_dp(&batteries)?;
     Ok(())
 }
 
@@ -80,6 +108,7 @@ fn example_input() -> Result<()> {
     let batteries = parse_input(input)?;
     assert_eq!(part1(&batteries).unwrap(), 357);
     assert_eq!(part2(&batteries).unwrap(), 3121910778619);
+    assert_eq!(part2_dp(&batteries).unwrap(), 3121910778619);
     Ok(())
 }
 
@@ -89,5 +118,6 @@ fn real_input() -> Result<()> {
     let batteries = parse_input(input)?;
     assert_eq!(part1(&batteries).unwrap(), 16927);
     assert_eq!(part2(&batteries).unwrap(), 167384358365132);
+    assert_eq!(part2_dp(&batteries).unwrap(), 167384358365132);
     Ok(())
 }
