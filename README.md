@@ -104,3 +104,32 @@ fn find_invalid(start: usize, end: usize, base: u32) -> Vec<usize> {
     invalids
 }
 ```
+
+## Day 3
+
+今天要求计算一个数字序列的最大子串（数字），第一部分限定子串长度为2，第二部分则限定长度为12，同时子串的顺序不变。输入的处理不复杂，思路也很简单，就是遍历数字序列，依次寻找最大值即可。
+
+考虑数字序列 96781 ，需要寻找长度为 2 的最大子串，假设子串为 ab ，那么优先从给定序列中确定最大的 a ，同时确保能找到 b 即可。搜索 a 时从左到右进行搜索，而搜索到最后一个数字之前就需要停止，也就是搜索 9678 即可。在搜索 a 的过程中不必考虑是否可能会导致 b 的值不是最大，因为最后的要求的是 ab 最大即可。假设搜索过程中为了确保 b 的值为最大的 d ，而导致 a 取得了较小的值 c，即 c < a 且 d > b ，那么 10 * c + d 一定小于 10 * a + b 。
+
+两个部分对于子串的长度要求不同，但是思路是一致的。从左到右依次搜索字串最大值的过程中，需要记录第一次遇到最大值的元素位置，而非其他可能遇到最大值的位置，这样可以避免影响后续元素最大值搜索。参考序列 98975，需要寻找长度为 2 的最大子串，a 确定搜索到的最大值为 9，如果 a 记录的最大值位置不为 0 而为 2 ，那么搜索 b 时就会从位置 3 开始搜索，最后得到子串为 97 ，是错误结果。
+
+核心代码
+
+```rust
+fn find_largest_joltage(battery: &[usize], number: usize) -> usize {
+    let length = battery.len();
+    let mut joltage = 0;
+    let mut next_battery = 0;
+    for l in (0..number).rev() {
+        let mut max_battery = 0;
+        (next_battery..(length - l)).for_each(|left| {
+            if battery[left] > max_battery {
+                max_battery = battery[left];
+                next_battery = left + 1;
+            }
+        });
+        joltage = joltage * 10 + max_battery;
+    }
+    joltage
+}
+```
