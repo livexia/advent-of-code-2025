@@ -61,17 +61,14 @@ fn part2(grid: &HashSet<(isize, isize)>) -> Result<usize> {
 
     while flag {
         flag = false;
-        let mut temp = HashSet::new();
 
-        for &p in &grid {
+        grid.clone().iter().for_each(|&p| {
             if adjacent(p).iter().filter(|&p| grid.contains(p)).count() < 4 {
+                grid.remove(&p);
+                count += 1;
                 flag = true;
-            } else {
-                temp.insert(p);
             }
-        }
-        count += grid.len() - temp.len();
-        grid = temp;
+        });
     }
 
     println!("part2: {count}");
