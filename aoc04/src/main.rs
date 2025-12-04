@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::error::Error;
 use std::io::{self, Read};
 use std::time::Instant;
@@ -70,6 +71,41 @@ fn part1(grid: &[Vec<char>]) -> Result<usize> {
     Ok(count)
 }
 
+fn part2(grid: &[Vec<char>]) -> Result<usize> {
+    let _start = Instant::now();
+
+    let mut flag = true;
+    let mut count = 0;
+    let mut grid = grid.to_vec();
+
+    while flag {
+        flag = false;
+        let mut removed = HashSet::new();
+        for (i, line) in grid.iter().enumerate() {
+            for (j, &c) in line.iter().enumerate() {
+                if c == '@'
+                    && adjacent(&grid, i, j)
+                        .iter()
+                        .filter(|(x, y)| grid[*x][*y] == '@')
+                        .count()
+                        < 4
+                {
+                    removed.insert((i, j));
+                    flag = true;
+                }
+            }
+        }
+        count += removed.len();
+        for (i, j) in removed {
+            grid[i][j] = '.';
+        }
+    }
+
+    println!("part2: {count}");
+    println!("> Time elapsed is: {:?}", _start.elapsed());
+    Ok(count)
+}
+
 fn main() -> Result<()> {
     let mut input = String::new();
     io::stdin().read_to_string(&mut input)?;
@@ -77,7 +113,7 @@ fn main() -> Result<()> {
     let grid = parse_input(input)?;
 
     part1(&grid)?;
-    // part2()?;
+    part2(&grid)?;
     Ok(())
 }
 
@@ -95,6 +131,7 @@ fn example_input() -> Result<()> {
 @.@.@@@.@.";
     let grid = parse_input(input)?;
     assert_eq!(part1(&grid).unwrap(), 13);
+    assert_eq!(part2(&grid).unwrap(), 43);
     Ok(())
 }
 
@@ -102,6 +139,7 @@ fn example_input() -> Result<()> {
 fn real_input() -> Result<()> {
     let input = std::fs::read_to_string("input/input.txt").unwrap();
     let grid = parse_input(input)?;
-    assert_eq!(part1(&grid).unwrap(), 13);
+    assert_eq!(part1(&grid).unwrap(), 1419);
+    assert_eq!(part2(&grid).unwrap(), 8739);
     Ok(())
 }
