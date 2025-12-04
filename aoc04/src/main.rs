@@ -1,7 +1,5 @@
-use std::collections::HashSet;
 use std::error::Error;
 use std::io::{self, Read};
-use std::isize;
 use std::time::Instant;
 
 #[allow(unused_macros)]
@@ -11,23 +9,20 @@ macro_rules! err {
 
 type Result<T> = ::std::result::Result<T, Box<dyn Error>>;
 
-fn parse_input<T: AsRef<str>>(input: T) -> Result<HashSet<(isize, isize)>> {
-    let mut grid = HashSet::new();
-
-    for (i, line) in input.as_ref().trim().lines().enumerate() {
-        for (j, c) in line.trim().chars().enumerate() {
-            if c == '@' {
-                grid.insert((i as isize, j as isize));
-            }
-        }
-    }
-
-    Ok(grid)
+fn parse_input<T: AsRef<str>>(input: T) -> Result<Vec<Vec<char>>> {
+    Ok(input
+        .as_ref()
+        .trim()
+        .lines()
+        .filter(|l| !l.is_empty())
+        .map(|l| l.trim().chars().collect())
+        .collect())
 }
 
-fn adjacent(p: (isize, isize)) -> [(isize, isize); 8] {
-    let (x, y) = p;
-    [
+fn adjacent(grid: &[Vec<char>], x: usize, y: usize) -> Vec<(usize, usize)> {
+    let (mx, my) = (grid.len() as isize, grid[0].len() as isize);
+    let (x, y) = (x as isize, y as isize);
+    let positions = [
         (x - 1, y - 1),
         (x - 1, y),
         (x - 1, y + 1),
@@ -36,39 +31,69 @@ fn adjacent(p: (isize, isize)) -> [(isize, isize); 8] {
         (x + 1, y - 1),
         (x + 1, y),
         (x + 1, y + 1),
-    ]
+    ];
+    positions
+        .into_iter()
+        .filter_map(|(x, y)| {
+            if x >= 0 && x < mx && y >= 0 && y < my {
+                Some((x as usize, y as usize))
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
-fn part1(grid: &HashSet<(isize, isize)>) -> Result<usize> {
+fn part1(grid: &[Vec<char>]) -> Result<usize> {
     let _start = Instant::now();
 
     let count = grid
         .iter()
-        .filter(|&p| adjacent(*p).iter().filter(|&p| grid.contains(p)).count() < 4)
-        .count();
+        .enumerate()
+        .map(|(i, l)| {
+            l.iter()
+                .enumerate()
+                .filter(|(j, c)| {
+                    c == &&'@'
+                        && adjacent(grid, i, *j)
+                            .iter()
+                            .filter(|(x, y)| grid[*x][*y] == '@')
+                            .count()
+                            < 4
+                })
+                .count()
+        })
+        .sum();
 
     println!("part1: {count}");
     println!("> Time elapsed is: {:?}", _start.elapsed());
     Ok(count)
 }
 
-fn part2(grid: &HashSet<(isize, isize)>) -> Result<usize> {
+fn part2(grid: &[Vec<char>]) -> Result<usize> {
     let _start = Instant::now();
 
     let mut flag = true;
     let mut count = 0;
-    let mut grid = grid.clone();
+    let mut grid = grid.to_vec();
 
     while flag {
         flag = false;
-
-        grid.clone().iter().for_each(|&p| {
-            if adjacent(p).iter().filter(|&p| grid.contains(p)).count() < 4 {
-                grid.remove(&p);
-                count += 1;
-                flag = true;
+        for i in 0..grid.len() {
+            for j in 0..grid[0].len() {
+                if grid[i][j] == '@'
+                    && adjacent(&grid, i, j)
+                        .iter()
+                        .filter(|(x, y)| grid[*x][*y] == '@')
+                        .count()
+                        < 4
+                {
+                    count += 1;
+                    grid[i][j] = '.';
+                    flag = true;
+                }
             }
-        });
+        }
     }
 
     println!("part2: {count}");
