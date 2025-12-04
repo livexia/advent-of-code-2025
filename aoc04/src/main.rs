@@ -1,3 +1,5 @@
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::error::Error;
 use std::io::{self, Read};
 use std::time::Instant;
@@ -73,28 +75,48 @@ fn part1(grid: &[Vec<char>]) -> Result<usize> {
 fn part2(grid: &[Vec<char>]) -> Result<usize> {
     let _start = Instant::now();
 
-    let mut flag = true;
-    let mut count = 0;
-    let mut grid = grid.to_vec();
+    let mut queue = BinaryHeap::new();
+    let mut adjacent_map = HashMap::new();
 
-    while flag {
-        flag = false;
-        for i in 0..grid.len() {
-            for j in 0..grid[0].len() {
-                if grid[i][j] == '@'
-                    && adjacent(&grid, i, j)
-                        .iter()
-                        .filter(|(x, y)| grid[*x][*y] == '@')
-                        .count()
-                        < 4
-                {
-                    count += 1;
-                    grid[i][j] = '.';
-                    flag = true;
-                }
+    for i in 0..grid.len() {
+        for j in 0..grid[0].len() {
+            if grid[i][j] == '@' {
+                let conn = adjacent(grid, i, j)
+                    .iter()
+                    .filter(|(x, y)| grid[*x][*y] == '@')
+                    .count();
+                queue.push(Reverse((conn, (i, j))));
+                adjacent_map.insert((i, j), conn);
             }
         }
     }
+
+    let mut remvoed = HashSet::new();
+
+    while let Some(Reverse((c, p))) = queue.pop() {
+        if let Some(v) = adjacent_map.get(&p)
+            && c != *v
+        {
+            continue;
+        }
+        if remvoed.contains(&p) {
+            continue;
+        }
+        if c < 4 {
+            remvoed.insert(p);
+            adjacent_map.remove(&p);
+            for n in adjacent(grid, p.0, p.1) {
+                if let Some(v) = adjacent_map.get_mut(&n) {
+                    *v -= 1;
+                    queue.push(Reverse((*v, n)));
+                }
+            }
+        } else {
+            break;
+        }
+    }
+
+    let count = remvoed.len();
 
     println!("part2: {count}");
     println!("> Time elapsed is: {:?}", _start.elapsed());
