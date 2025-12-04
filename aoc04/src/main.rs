@@ -1,5 +1,4 @@
-use std::cmp::Reverse;
-use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::error::Error;
 use std::io::{self, Read};
 use std::time::Instant;
@@ -75,8 +74,8 @@ fn part1(grid: &[Vec<char>]) -> Result<usize> {
 fn part2(grid: &[Vec<char>]) -> Result<usize> {
     let _start = Instant::now();
 
-    let mut queue = BinaryHeap::new();
-    let mut adjacent_map = HashMap::new();
+    let mut queue = VecDeque::new();
+    let mut adjacent_count = HashMap::new();
 
     for i in 0..grid.len() {
         for j in 0..grid[0].len() {
@@ -85,34 +84,26 @@ fn part2(grid: &[Vec<char>]) -> Result<usize> {
                     .iter()
                     .filter(|(x, y)| grid[*x][*y] == '@')
                     .count();
-                queue.push(Reverse((conn, (i, j))));
-                adjacent_map.insert((i, j), conn);
+                if conn < 4 {
+                    queue.push_back((i, j));
+                }
+                adjacent_count.insert((i, j), conn);
             }
         }
     }
 
     let mut remvoed = HashSet::new();
 
-    while let Some(Reverse((c, p))) = queue.pop() {
-        if let Some(v) = adjacent_map.get(&p)
-            && c != *v
-        {
-            continue;
-        }
-        if remvoed.contains(&p) {
-            continue;
-        }
-        if c < 4 {
-            remvoed.insert(p);
-            adjacent_map.remove(&p);
+    while let Some(p) = queue.pop_front() {
+        if remvoed.insert(p) {
             for n in adjacent(grid, p.0, p.1) {
-                if let Some(v) = adjacent_map.get_mut(&n) {
+                if let Some(v) = adjacent_count.get_mut(&n) {
                     *v -= 1;
-                    queue.push(Reverse((*v, n)));
+                    if *v < 4 {
+                        queue.push_back(n);
+                    }
                 }
             }
-        } else {
-            break;
         }
     }
 
