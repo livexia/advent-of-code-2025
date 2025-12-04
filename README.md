@@ -209,6 +209,6 @@ fn dp_find_largest_joltage(battery: &[usize], number: usize) -> usize {
 
 BFS 也需要用到两个数据结构，VecDeque 和 HashMap ，其中队列中保存的是当前矩阵中邻接卷纸数量小于 4 的卷纸坐标，而 HashMap 则不断记录着每个卷纸的邻接卷纸数量。
 
-每次从队列中弹出卷纸时，更新这个卷纸的邻接卷纸的邻接数量，如果数量小于 4 则将该邻接卷纸入队，依次进行直到队列为空。具体实现见代码 [code](https://github.com/livexia/advent-of-code-2025/blob/main/aoc04/src/main.rs)。
+每次从队列中弹出卷纸时，更新这个卷纸的邻接卷纸的邻接数量，如果数量小于 4 则将该邻接卷纸入队，依次进行直到队列为空。具体实现见代码 [code](https://github.com/livexia/advent-of-code-2025/blob/main/aoc04/src/main.rs)，第二部分运行时间差不多是 70ms ，这个 BFS 实际上和前面的优化是一致的，所以在时间上没有快很多，但是算法更加简洁实现也更加容易。
 
 因为暴力的方法很简单，所以没有单列与代码中，因为很久没写代码了，所以对于 BFS 有所模糊，最终的代码之保留了 BFS 的实现，BFS 中使用到的 Hash 数据结构也可以通过 Vec 替代，因为输入较小这样也可以提高实际的运行效率，同时提及的运行时间都是 debug 下得到的，release 的运行时间会更少。
