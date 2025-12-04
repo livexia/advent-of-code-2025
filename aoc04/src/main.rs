@@ -92,10 +92,10 @@ fn part2(grid: &[Vec<char>]) -> Result<usize> {
         }
     }
 
-    let mut remvoed = HashSet::new();
+    let mut removed = HashSet::new();
 
     while let Some(p) = queue.pop_front() {
-        if remvoed.insert(p) {
+        if removed.insert(p) {
             for n in adjacent(grid, p.0, p.1) {
                 if let Some(v) = adjacent_count.get_mut(&n) {
                     *v -= 1;
@@ -107,7 +107,7 @@ fn part2(grid: &[Vec<char>]) -> Result<usize> {
         }
     }
 
-    let count = remvoed.len();
+    let count = removed.len();
 
     println!("part2: {count}");
     println!("> Time elapsed is: {:?}", _start.elapsed());
