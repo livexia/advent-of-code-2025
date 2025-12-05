@@ -61,10 +61,8 @@ fn merge_range(r: IdRange, other: IdRange) -> Option<IdRange> {
     };
     if r.1 < other.0 {
         None
-    } else if r.1 >= other.1 {
-        Some(r)
     } else {
-        Some((r.0, other.1))
+        Some((r.0, r.1.max(other.1)))
     }
 }
 
@@ -72,27 +70,20 @@ fn part2(ranges: &[IdRange]) -> Result<usize> {
     let _start = Instant::now();
 
     let mut ranges = ranges.to_vec();
+    ranges.sort();
     let mut merged = vec![];
 
-    let mut flag = true;
+    let mut current = ranges[0];
 
-    while flag {
-        flag = false;
-        merged.clear();
-        'outer: while let Some(other) = ranges.pop() {
-            for r in merged.iter_mut() {
-                if let Some(m) = merge_range(*r, other) {
-                    flag = true;
-                    *r = m;
-                    continue 'outer;
-                } else {
-                    continue;
-                }
-            }
-            merged.push(other);
+    for &next in &ranges[1..] {
+        if let Some(m) = merge_range(current, next) {
+            current = m;
+        } else {
+            merged.push(current);
+            current = next;
         }
-        ranges = merged.clone();
     }
+    merged.push(current);
 
     let count = merged.iter().map(|(s, e)| e - s + 1).sum();
 
