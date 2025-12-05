@@ -15,10 +15,10 @@ fn parse_input<T: AsRef<str>>(input: T) -> Result<(Vec<IdRange>, Vec<usize>)> {
         let ranges = ranges
             .trim()
             .lines()
-            .filter(|l| !l.is_empty())
+            .filter(|l| !l.trim().is_empty())
             .map(|l| {
                 if let Some((s, e)) = l.trim().split_once("-") {
-                    Ok((s.parse::<usize>().unwrap(), e.parse::<usize>().unwrap()))
+                    Ok((s.parse::<usize>()?, e.parse::<usize>()?))
                 } else {
                     err!("unable to parse line: {l}")
                 }
@@ -27,12 +27,8 @@ fn parse_input<T: AsRef<str>>(input: T) -> Result<(Vec<IdRange>, Vec<usize>)> {
         let ids = ids
             .trim()
             .lines()
-            .filter(|l| !l.is_empty())
-            .map(|l| {
-                l.trim()
-                    .parse::<usize>()
-                    .map_err(|e| Box::new(e) as Box<dyn Error>)
-            })
+            .filter(|l| !l.trim().is_empty())
+            .map(|l| l.trim().parse::<usize>().map_err(|e| e.into()))
             .collect::<Result<_>>()?;
         Ok((ranges, ids))
     } else {
@@ -59,7 +55,7 @@ fn merge_range(r: IdRange, other: IdRange) -> Option<IdRange> {
     } else {
         (r, other)
     };
-    if r.1 < other.0 {
+    if r.1 + 1 < other.0 {
         None
     } else {
         Some((r.0, r.1.max(other.1)))
