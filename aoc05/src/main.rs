@@ -1,3 +1,4 @@
+use std::cmp::Ordering::{Equal, Greater, Less};
 use std::error::Error;
 use std::io::{self, Read};
 use std::time::Instant;
@@ -39,9 +40,28 @@ fn parse_input<T: AsRef<str>>(input: T) -> Result<(Vec<IdRange>, Vec<usize>)> {
 fn part1(ranges: &[IdRange], ids: &[usize]) -> Result<usize> {
     let _start = Instant::now();
 
+    let ranges = merge_ranges(ranges);
+
+    // let count = ids
+    //     .iter()
+    //     .filter(|&&id| ranges.iter().any(|r| r.0 <= id && r.1 >= id))
+    //     .count();
+
     let count = ids
         .iter()
-        .filter(|&&id| ranges.iter().any(|r| r.0 <= id && r.1 >= id))
+        .filter(|&&id| {
+            ranges
+                .binary_search_by(|r| {
+                    if r.1 < id {
+                        Less
+                    } else if r.0 > id {
+                        Greater
+                    } else {
+                        Equal
+                    }
+                })
+                .is_ok()
+        })
         .count();
 
     println!("part 1: {count}");
@@ -62,9 +82,7 @@ fn merge_range(r: IdRange, other: IdRange) -> Option<IdRange> {
     }
 }
 
-fn part2(ranges: &[IdRange]) -> Result<usize> {
-    let _start = Instant::now();
-
+fn merge_ranges(ranges: &[IdRange]) -> Vec<IdRange> {
     let mut ranges = ranges.to_vec();
     ranges.sort();
     let mut merged = vec![];
@@ -80,8 +98,13 @@ fn part2(ranges: &[IdRange]) -> Result<usize> {
         }
     }
     merged.push(current);
+    merged
+}
 
-    let count = merged.iter().map(|(s, e)| e - s + 1).sum();
+fn part2(ranges: &[IdRange]) -> Result<usize> {
+    let _start = Instant::now();
+
+    let count = merge_ranges(ranges).iter().map(|(s, e)| e - s + 1).sum();
 
     println!("part 2: {count}");
     println!("> Time elapsed is: {:?}", _start.elapsed());
