@@ -281,3 +281,95 @@ fn merge_ranges(ranges: &[IdRange]) -> Vec<IdRange> {
     merged
 }
 ```
+
+## Day 6
+
+今天的题目有点陷阱题的意思，陷阱主要在于输入的处理上，输入类似于表格的形式，看到这个输入立马按照行进行了处理，将一个个数字和运算符解析出来，最终形成两个数组，这样处理之后轻松的就能完成第一部分。
+
+
+### 列解析与逆序计算
+
+第二部分的核心挑战在于必须采用**逆序的、基于列**的解析方式，而非传统的行处理。为了高效实现这一目标，我们对输入数据进行了预处理，并将运算逻辑与数据累积分离。
+
+#### 1. 数据预处理（逆序化）
+
+* **目标:** 实现从右到左的列迭代。
+* **方法:** 对输入文本的每一行（去除空行后），将其**字节序列逆序**。
+    * 例如：原输入行 `A 123` 预处理后变为 `[3, 2, 1, ' ' , A]` (字节表示)。
+* **结果:** `lines: Vec<Vec<u8>>` 数组中的列索引 $i$ （从 0 开始）现在对应原始输入中的**从右往左**的列。
+
+#### 2. 核心计算流程（逐列迭代）
+
+代码从 $i=0$ 开始，逐列向左迭代，并在每个列上执行两个主要动作：**数字提取**和**操作符判断**。
+
+##### A. 数字提取 (`real`)
+
+对于当前列 $i$:
+
+1.  **范围:** 仅查看**操作符行之上**的所有行（即除了最后一行）。
+2.  **过滤:** 忽略当前列中的所有**空格** (`b' '`) 字符。
+3.  **组合:** 将当前列中，从上到下遇到的所有数字字符**组合成一个多位数字** `real`。
+    * **公式:** 采用 **`fold(0, |r, n| r * 10 + n)`** 实现，其中 $r$ 是累积结果，$n$ 是当前行数字。
+
+##### B. 操作符判断与计算
+
+检查**最后一行**（操作符行）在当前列 $i$ 上的字符，根据其类型执行相应的逻辑。
+
+| 最后一行字符 | 提取的 `real` 值 | 动作描述 | 对 `ans` 的影响 | `reals` 数组变化 |
+| :--- | :--- | :--- | :--- | :--- |
+| `b'+'` | 任何值 | **加法运算**。 | $ans += \text{sum}(\text{reals}) + \text{real}$ | 清空 (`reals.clear()`) |
+| `b'*'` | 任何值 | **乘法运算**。 | $ans += \text{product}(\text{reals}) \times \text{real}$ | 清空 (`reals.clear()`) |
+| 任何其他字符 | $> 0$ | **数字累积**。 | 无 | 推入当前数字 (`reals.push(real)`) |
+| 任何字符 | $= 0$ | **序列中断**。 | 无 | 清空 (`reals.clear()`) |
+
+> **`reals` 数组**：用于临时存储在一系列非操作符列中提取到的数字，直到遇到操作符为止。
+
+#### 3. 结果
+
+通过这种逐列、逆序的解析和即时计算，有效地解决了第二部分要求的计算逻辑，避免了复杂的中间数据结构转换，实现了高效的算法。
+
+第二部分代码
+
+```rust
+fn part2<T: AsRef<str>>(input: T) -> Result<usize> {
+    let _start = Instant::now();
+
+    let mut ans = 0;
+    let lines: Vec<Vec<_>> = input
+        .as_ref()
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| l.bytes().rev().collect())
+        .collect();
+    let op_row = lines.len() - 1;
+    let mut reals = vec![];
+
+    for i in 0..lines[0].len() {
+        let real = lines[0..op_row]
+            .iter()
+            .filter_map(|row| {
+                if row[i] == b' ' {
+                    None
+                } else {
+                    Some((row[i] - b'0') as usize)
+                }
+            })
+            .fold(0, |r, n| r * 10 + n);
+        match lines[op_row][i] {
+            b'+' => ans += reals.iter().sum::<usize>() + real,
+            b'*' => ans += reals.iter().product::<usize>() * real,
+            _ => {
+                if real == 0 {
+                    reals.clear();
+                } else {
+                    reals.push(real);
+                }
+            }
+        }
+    }
+
+    println!("part 2: {ans}");
+    println!("> Time elapsed is: {:?}", _start.elapsed());
+    Ok(ans)
+}
+```
