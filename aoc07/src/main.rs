@@ -28,7 +28,7 @@ fn part1(grid: &Grid) -> Result<usize> {
     let mut count = 0;
     let mut beams: Vec<_> = grid[0].iter().map(|c| c == &'S').collect();
 
-    for row in &grid[1..] {
+    for row in grid.iter().step_by(2) {
         for j in 0..beams.len() {
             if beams[j] && row[j] == '^' {
                 beams[j] = false;
@@ -44,6 +44,7 @@ fn part1(grid: &Grid) -> Result<usize> {
     Ok(count)
 }
 
+#[allow(unused)]
 fn dfs(current: (usize, usize), grid: &Grid, cache: &mut HashMap<(usize, usize), usize>) -> usize {
     if let Some(v) = cache.get(&current) {
         return *v;
@@ -67,9 +68,21 @@ fn dfs(current: (usize, usize), grid: &Grid, cache: &mut HashMap<(usize, usize),
 fn part2(grid: &Grid) -> Result<usize> {
     let _start = Instant::now();
 
-    let start = grid[0].iter().position(|c| c == &'S').unwrap();
+    let mut timelines: Vec<_> = grid[0].iter().map(|c| (c == &'S') as usize).collect();
 
-    let count = dfs((0, start), grid, &mut HashMap::new());
+    for row in grid.iter().step_by(2) {
+        let mut next = vec![0; timelines.len()];
+        for (j, current) in timelines.iter().enumerate().filter(|(_, c)| c > &&0) {
+            if row[j] == '^' {
+                next[j - 1] += current;
+                next[j + 1] += current;
+            } else {
+                next[j] += current;
+            }
+        }
+        timelines = next;
+    }
+    let count = timelines.iter().sum();
 
     println!("part 2: {count}");
     println!("> Time elapsed is: {:?}", _start.elapsed());
