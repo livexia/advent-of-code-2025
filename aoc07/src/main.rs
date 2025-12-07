@@ -10,22 +10,16 @@ macro_rules! err {
 
 type Result<T> = ::std::result::Result<T, Box<dyn Error>>;
 
-type Grid = HashMap<(isize, isize), char>;
+type Grid = Vec<Vec<char>>;
 
 fn parse_input<T: AsRef<str>>(input: T) -> Result<Grid> {
-    let mut grid = Grid::new();
-    for (i, line) in input
+    Ok(input
         .as_ref()
         .trim()
         .lines()
         .filter(|l| !l.trim().is_empty())
-        .enumerate()
-    {
-        for (j, c) in line.trim().chars().enumerate() {
-            grid.insert((i as isize, j as isize), c);
-        }
-    }
-    Ok(grid)
+        .map(|l| l.trim().chars().collect())
+        .collect())
 }
 
 fn part1(grid: &Grid) -> Result<usize> {
@@ -33,10 +27,10 @@ fn part1(grid: &Grid) -> Result<usize> {
 
     let mut count = 0;
 
-    let &start = grid.iter().find(|(_, c)| c == &&'S').unwrap().0;
+    let start = grid[0].iter().position(|c| c == &'S').unwrap();
 
     let mut queue = VecDeque::new();
-    queue.push_back(start);
+    queue.push_back((0, start));
 
     let mut visited = HashSet::new();
 
@@ -45,15 +39,18 @@ fn part1(grid: &Grid) -> Result<usize> {
             continue;
         }
         let (x, y) = current;
-        match grid.get(&current) {
-            Some('.') | Some('S') => queue.push_back((x + 1, y)),
-            Some('^') => {
+        match grid[x][y] {
+            '.' | 'S' => {
+                if x + 1 < grid.len() {
+                    queue.push_back((x + 1, y))
+                }
+            }
+            '^' => {
                 count += 1;
                 for p in [(x, y - 1), (x, y + 1)] {
                     queue.push_back(p);
                 }
             }
-            None => continue,
             _ => unreachable!(),
         }
     }
@@ -63,17 +60,20 @@ fn part1(grid: &Grid) -> Result<usize> {
     Ok(count)
 }
 
-fn dfs(current: (isize, isize), grid: &Grid, cache: &mut HashMap<(isize, isize), usize>) -> usize {
+fn dfs(current: (usize, usize), grid: &Grid, cache: &mut HashMap<(usize, usize), usize>) -> usize {
     if let Some(v) = cache.get(&current) {
         return *v;
     }
-    let c = match grid.get(&current) {
-        Some('.') | Some('S') => dfs((current.0 + 1, current.1), grid, cache),
-        Some('^') => {
-            let (x, y) = current;
-            dfs((x, y - 1), grid, cache) + dfs((x, y + 1), grid, cache)
+    let (x, y) = current;
+    let c = match grid[x][y] {
+        '.' | 'S' => {
+            if x + 1 < grid.len() {
+                dfs((x + 1, y), grid, cache)
+            } else {
+                1
+            }
         }
-        None => 1,
+        '^' => dfs((x, y - 1), grid, cache) + dfs((x, y + 1), grid, cache),
         _ => unreachable!(),
     };
     cache.insert(current, c);
@@ -83,9 +83,9 @@ fn dfs(current: (isize, isize), grid: &Grid, cache: &mut HashMap<(isize, isize),
 fn part2(grid: &Grid) -> Result<usize> {
     let _start = Instant::now();
 
-    let &start = grid.iter().find(|(_, c)| c == &&'S').unwrap().0;
+    let start = grid[0].iter().position(|c| c == &'S').unwrap();
 
-    let count = dfs(start, grid, &mut HashMap::new());
+    let count = dfs((0, start), grid, &mut HashMap::new());
 
     println!("part 2: {count}");
     println!("> Time elapsed is: {:?}", _start.elapsed());
