@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::HashMap;
 use std::error::Error;
 use std::io::{self, Read};
 use std::time::Instant;
@@ -26,32 +26,16 @@ fn part1(grid: &Grid) -> Result<usize> {
     let _start = Instant::now();
 
     let mut count = 0;
+    let mut beams: Vec<_> = grid[0].iter().map(|c| c == &'S').collect();
 
-    let start = grid[0].iter().position(|c| c == &'S').unwrap();
-
-    let mut queue = VecDeque::new();
-    queue.push_back((0, start));
-
-    let mut visited = HashSet::new();
-
-    while let Some(current) = queue.pop_front() {
-        if !visited.insert(current) {
-            continue;
-        }
-        let (x, y) = current;
-        match grid[x][y] {
-            '.' | 'S' => {
-                if x + 1 < grid.len() {
-                    queue.push_back((x + 1, y))
-                }
-            }
-            '^' => {
+    for row in &grid[1..] {
+        for j in 0..beams.len() {
+            if beams[j] && row[j] == '^' {
+                beams[j] = false;
+                beams[j - 1] = true;
+                beams[j + 1] = true;
                 count += 1;
-                for p in [(x, y - 1), (x, y + 1)] {
-                    queue.push_back(p);
-                }
             }
-            _ => unreachable!(),
         }
     }
 
