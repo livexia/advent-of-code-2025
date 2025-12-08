@@ -10,7 +10,7 @@ macro_rules! err {
 
 type Result<T> = ::std::result::Result<T, Box<dyn Error>>;
 
-type Coord = (isize, isize, isize);
+type Coord = (usize, usize, usize);
 
 fn parse_input<T: AsRef<str>>(input: T) -> Result<Vec<Coord>> {
     input
@@ -21,9 +21,9 @@ fn parse_input<T: AsRef<str>>(input: T) -> Result<Vec<Coord>> {
             let mut it = l.trim().split(",");
             match (it.next(), it.next(), it.next()) {
                 (Some(x), Some(y), Some(z)) => Ok((
-                    x.parse::<isize>().unwrap(),
-                    y.parse::<isize>().unwrap(),
-                    z.parse::<isize>().unwrap(),
+                    x.parse::<usize>().unwrap(),
+                    y.parse::<usize>().unwrap(),
+                    z.parse::<usize>().unwrap(),
                 )),
                 _ => err!("unable parse input: {l:?}"),
             }
@@ -38,6 +38,19 @@ fn distance(c: Coord, other: Coord) -> usize {
     dx.pow(2) + dy.pow(2) + dz.pow(2)
 }
 
+fn connections(coords: &[Coord]) -> Vec<(usize, usize)> {
+    let mut edges = vec![];
+    for i in 0..coords.len() {
+        for j in i + 1..coords.len() {
+            edges.push((i, j));
+        }
+    }
+
+    edges.sort_by_key(|(a, b)| distance(coords[*a], coords[*b]));
+
+    edges
+}
+
 fn find(circuits: &mut [usize], i: usize) -> usize {
     if circuits[i] == circuits.len() {
         circuits[i] = i;
@@ -49,26 +62,23 @@ fn find(circuits: &mut [usize], i: usize) -> usize {
     circuits[i]
 }
 
+fn connect_circuit(circuits: &mut [usize], connection: (usize, usize)) {
+    let (i, j) = connection;
+    let i_root = find(circuits, i);
+    let j_root = find(circuits, j);
+    if i_root != j_root {
+        circuits[i_root] = j_root;
+    }
+}
+
 fn part1(coords: &[Coord], pairs: usize) -> Result<usize> {
     let _start = Instant::now();
 
-    let mut edges = vec![];
-    for i in 0..coords.len() {
-        for j in i + 1..coords.len() {
-            edges.push((i, j));
-        }
-    }
-
-    edges.sort_by_key(|(a, b)| distance(coords[*a], coords[*b]));
-
+    let edges = connections(coords);
     let mut circuits: Vec<_> = vec![coords.len(); coords.len()];
 
-    for &(i, j) in edges.iter().take(pairs) {
-        let i_root = find(&mut circuits, i);
-        let j_root = find(&mut circuits, j);
-        if i_root != j_root {
-            circuits[i_root] = j_root;
-        }
+    for &e in edges.iter().take(pairs) {
+        connect_circuit(&mut circuits, e);
     }
 
     let mut count = HashMap::new();
@@ -90,6 +100,35 @@ fn part1(coords: &[Coord], pairs: usize) -> Result<usize> {
     Ok(size)
 }
 
+fn part2(coords: &[Coord]) -> Result<usize> {
+    let _start = Instant::now();
+
+    let edges = connections(coords);
+
+    let mut ans = 0;
+    let mut circuits: Vec<_> = vec![coords.len(); coords.len()];
+    for &(i, j) in edges.iter() {
+        connect_circuit(&mut circuits, (i, j));
+
+        let mut count = HashMap::new();
+        for i in 0..circuits.len() {
+            circuits[i] = find(&mut circuits, i);
+            *count.entry(circuits[i]).or_insert(0) += 1;
+            if count.len() != 1 {
+                break;
+            }
+        }
+        if count.len() == 1 && count.values().sum::<usize>() == coords.len() {
+            ans = coords[i].0 * coords[j].0;
+            break;
+        }
+    }
+
+    println!("part 2: {ans}");
+    println!("> Time elapsed is: {:?}", _start.elapsed());
+    Ok(ans)
+}
+
 fn main() -> Result<()> {
     let mut input = String::new();
     io::stdin().read_to_string(&mut input)?;
@@ -97,7 +136,7 @@ fn main() -> Result<()> {
     let coords = parse_input(input)?;
 
     part1(&coords, 1000)?;
-    // part2()?;
+    part2(&coords)?;
     Ok(())
 }
 
@@ -125,7 +164,7 @@ fn example_input() -> Result<()> {
 425,690,689";
     let coords = parse_input(input)?;
     assert_eq!(part1(&coords, 10).unwrap(), 40);
-    // assert_eq!(part2(&coords).unwrap(), 25272);
+    assert_eq!(part2(&coords).unwrap(), 25272);
     Ok(())
 }
 
@@ -134,6 +173,6 @@ fn real_input() -> Result<()> {
     let input = std::fs::read_to_string("input/input.txt").unwrap();
     let coords = parse_input(input)?;
     assert_eq!(part1(&coords, 1000).unwrap(), 97384);
-    // assert_eq!(part2(&coords).unwrap(), 25272);
+    assert_eq!(part2(&coords).unwrap(), 9003685096);
     Ok(())
 }
