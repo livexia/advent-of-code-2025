@@ -527,3 +527,39 @@ fn part2(grid: &Grid) -> Result<usize> {
 尽管今天的程序在理论上仍有极致优化的空间——例如在**第一部分**引入**位掩码 (Bitmask)** 以利用 CPU 并行计算，或者在**第二部分**利用 **HashMap** (或稀疏索引) 来进一步压缩稀疏的时间线数据——但整体而言，目前的实现已经在代码可读性与运行效率之间取得了极佳的平衡。
 
 值得注意的是，即便是最初构想的 BFS 和 DFS 方案，在当前的数据规模下也能保持不错的响应速度，并未出现严重的性能瓶颈。总体来看，今天的题目难度适宜，更像是一场帮助大家找回状态的**算法热身**。
+
+## Day 8
+
+输入是一系列的三维坐标，需要进行两两连接，连接顺序要求按照坐标的直线距离升序进行连接。结果简单分析，今天的问题可以使用并查集表示输入，进行解决。
+
+因为太久没有写算法题，所以我阅读了 [维基百科](https://zh.wikipedia.org/wiki/%E5%B9%B6%E6%9F%A5%E9%9B%86) 后参考实现了并查集。
+
+首先将坐标进行两两配对，取得所有边的，根据边的长度（直线距离），进行排序。使用一个数组 circuits 代表节点的连接情况，circuits[i] 表示与节点 i 连接的节点。
+
+查询：具体的实现中 circuits 初始都被置为不存在的节点。
+
+```rust
+fn find(circuits: &mut [usize], i: usize) -> usize {
+    if circuits[i] == circuits.len() {
+        circuits[i] = i;
+        return i;
+    }
+    if circuits[i] != i {
+        circuits[i] = find(circuits, circuits[i]);
+    }
+    circuits[i]
+}
+```
+
+合并
+
+```rust
+fn union(circuits: &mut [usize], connection: (usize, usize)) {
+    let (i, j) = connection;
+    let i_root = find(circuits, i);
+    let j_root = find(circuits, j);
+    if i_root != j_root {
+        circuits[i_root] = j_root;
+    }
+}
+```

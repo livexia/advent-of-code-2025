@@ -62,7 +62,7 @@ fn find(circuits: &mut [usize], i: usize) -> usize {
     circuits[i]
 }
 
-fn connect_circuit(circuits: &mut [usize], connection: (usize, usize)) {
+fn union(circuits: &mut [usize], connection: (usize, usize)) {
     let (i, j) = connection;
     let i_root = find(circuits, i);
     let j_root = find(circuits, j);
@@ -78,11 +78,10 @@ fn part1(coords: &[Coord], pairs: usize) -> Result<usize> {
     let mut circuits: Vec<_> = vec![coords.len(); coords.len()];
 
     for &e in edges.iter().take(pairs) {
-        connect_circuit(&mut circuits, e);
+        union(&mut circuits, e);
     }
 
     let mut count = HashMap::new();
-
     for i in 0..circuits.len() {
         if circuits[i] == circuits.len() {
             continue;
@@ -108,7 +107,7 @@ fn part2(coords: &[Coord]) -> Result<usize> {
     let mut ans = 0;
     let mut circuits: Vec<_> = vec![coords.len(); coords.len()];
     for &(i, j) in edges.iter() {
-        connect_circuit(&mut circuits, (i, j));
+        union(&mut circuits, (i, j));
 
         let mut count = HashMap::new();
         for i in 0..circuits.len() {
