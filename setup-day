@@ -9,7 +9,7 @@ fi
 #    exit 1
 #fi
 
-name=$(printf "aoc%02d" "$((10#$1))")
+name=$(printf "aoc%02d" "${1#0}")
 cargo new --bin "$name"
 mkdir "$name/input"
 touch "$name/input/input.txt"
