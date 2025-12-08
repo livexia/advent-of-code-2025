@@ -52,46 +52,65 @@ fn distance(c: Coord, other: Coord) -> usize {
     dx.pow(2) + dy.pow(2) + dz.pow(2)
 }
 
-fn find(circuits: &mut [usize], i: usize) -> usize {
-    if circuits[i] == circuits.len() {
-        circuits[i] = i;
-        return i;
-    }
-    if circuits[i] != i {
-        circuits[i] = find(circuits, circuits[i]);
-    }
-    circuits[i]
+struct UnionFind {
+    parent: Vec<usize>,
+    size: Vec<usize>,
 }
 
-fn union(conn: Edge, circuits: &mut [usize], sizes: &mut [usize]) {
-    let (i, j) = conn;
-    let i_root = find(circuits, i);
-    let j_root = find(circuits, j);
-    if i_root != j_root {
-        circuits[i_root] = j_root;
-        sizes[j_root] += sizes[i_root];
+impl UnionFind {
+    fn new(n: usize) -> Self {
+        Self {
+            parent: (0..n).collect(),
+            size: vec![1; n],
+        }
+    }
+
+    fn find(&mut self, i: usize) -> usize {
+        if self.parent[i] != i {
+            self.parent[i] = self.find(self.parent[i]);
+        }
+        self.parent[i]
+    }
+
+    fn union(&mut self, i: usize, j: usize) -> bool {
+        let root_i = self.find(i);
+        let root_j = self.find(j);
+
+        if root_i != root_j {
+            if self.size[root_i] < self.size[root_j] {
+                self.parent[root_i] = root_j;
+                self.size[root_j] += self.size[root_i];
+            } else {
+                self.parent[root_j] = root_i;
+                self.size[root_i] += self.size[root_j];
+            }
+            return true;
+        }
+        false
+    }
+
+    fn get_size(&mut self, i: usize) -> usize {
+        let root = self.find(i);
+        self.size[root]
     }
 }
 
 fn part1(coords: &[Coord], conns: &[Edge], pairs: usize) -> Result<usize> {
     let _start = Instant::now();
 
-    let mut circuits = vec![coords.len(); coords.len()];
-    let mut sizes = vec![1; coords.len()];
-
-    for &e in conns.iter().take(pairs) {
-        union(e, &mut circuits, &mut sizes);
+    let n = coords.len();
+    let mut uf = UnionFind::new(n);
+    for &(u, v) in conns.iter().take(pairs) {
+        uf.union(u, v);
     }
 
-    let mut count = vec![];
-    for i in 0..coords.len() {
-        if circuits[i] == i {
-            count.push(sizes[i]);
-        }
-    }
+    let mut sizes: Vec<_> = (0..n)
+        .filter(|&i| uf.parent[i] == i)
+        .map(|i| uf.size[i])
+        .collect();
 
-    count.sort_by(|a, b| b.cmp(a));
-    let size = count[0] * count[1] * count[2];
+    sizes.sort_unstable_by(|a, b| b.cmp(a));
+    let size = sizes[0] * sizes[1] * sizes[2];
 
     println!("part 1: {size}");
     println!("> Time elapsed is: {:?}", _start.elapsed());
@@ -101,14 +120,14 @@ fn part1(coords: &[Coord], conns: &[Edge], pairs: usize) -> Result<usize> {
 fn part2(coords: &[Coord], conns: &[Edge]) -> Result<usize> {
     let _start = Instant::now();
 
+    let n = coords.len();
     let mut ans = 0;
-    let mut circuits = vec![coords.len(); coords.len()];
-    let mut sizes = vec![1; coords.len()];
-    for &(i, j) in conns.iter() {
-        union((i, j), &mut circuits, &mut sizes);
+    let mut uf = UnionFind::new(n);
+    for &(u, v) in conns.iter() {
+        uf.union(u, v);
 
-        if sizes[find(&mut circuits, j)] == coords.len() {
-            ans = coords[i].0 * coords[j].0;
+        if uf.get_size(v) == n {
+            ans = coords[u].0 * coords[v].0;
             break;
         }
     }

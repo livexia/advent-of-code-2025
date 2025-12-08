@@ -559,39 +559,40 @@ fn part2(grid: &Grid) -> Result<usize> {
   * **注意**：只有当 `i` 是根节点（即 `circuits[i] == i`）时，`sizes[i]` 的值才是准确且有意义的。
 
 **查询 (Find) 操作：**
-查询操作主要用于路径压缩，不涉及分量大小的变化。具体的实现中，我加入了一个懒加载的逻辑：如果 `circuits[i]` 未初始化（等于长度），则将其初始化为自身。
+查询操作主要用于路径压缩，不涉及分量大小的变化。具体的实现中，我使用了标准的递归路径压缩，让节点直接指向根节点，从而加速后续查询。
 
 ```rust
-fn find(circuits: &mut [usize], i: usize) -> usize {
-    // 懒加载初始化：如果节点未被访问过，将其父节点设为自己
-    if circuits[i] == circuits.len() {
-        circuits[i] = i;
-        return i;
+fn find(&mut self, i: usize) -> usize {
+    if self.parent[i] != i {
+        // 路径压缩：递归找到根节点并更新当前父节点
+        self.parent[i] = self.find(self.parent[i]);
     }
-    // 路径压缩：直接将当前节点指向根节点
-    if circuits[i] != i {
-        circuits[i] = find(circuits, circuits[i]);
-    }
-    circuits[i]
+    self.parent[i]
 }
 ```
 
 **合并 (Union) 操作：**
-这是优化的核心。当两个不同的连通分量合并时，我们将其中一个根节点的大小累加到新的根节点上。
+
+这是优化的核心。当两个不同的连通分量合并时，采用了 “按大小合并” (Union by Size) 的策略：比较两个集合的大小，始终将较小的集合合并到较大的集合中。这不仅能保持树的平衡，还能防止树的高度过高。
 
 ```rust
-fn union(conn: Edge, circuits: &mut [usize], sizes: &mut [usize]) {
-    let (i, j) = conn;
-    let i_root = find(circuits, i);
-    let j_root = find(circuits, j);
+fn union(&mut self, i: usize, j: usize) -> bool {
+    let root_i = self.find(i);
+    let root_j = self.find(j);
 
     // 只有当两个节点不在同一个集合时才合并
-    if i_root != j_root {
-        // 将 i_root 挂载到 j_root 下
-        circuits[i_root] = j_root;
-        // 关键步骤：更新新根节点 j_root 的大小
-        sizes[j_root] += sizes[i_root];
+    if root_i != root_j {
+        // 按大小合并：小树挂大树
+        if self.size[root_i] < self.size[root_j] {
+            self.parent[root_i] = root_j;
+            self.size[root_j] += self.size[root_i];
+        } else {
+            self.parent[root_j] = root_i;
+            self.size[root_i] += self.size[root_j];
+        }
+        return true;
     }
+    false
 }
 ```
 
