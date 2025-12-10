@@ -92,20 +92,20 @@ impl Machine {
         let mut visited = HashSet::new();
 
         queue.push_back((self.lights, 0, 0));
+        visited.insert(self.lights);
 
         while let Some((current_lights, button_pressed, presses)) = queue.pop_front() {
-            if visited.insert(button_pressed) {
-                for (index, button) in self.buttons.iter().enumerate() {
-                    if button_pressed & 1 << index == 1 {
-                        continue;
-                    }
-                    let next_lights = press_button(current_lights, button);
-                    let button_pressed = button_pressed | 1 << index;
-                    if next_lights != 0 {
-                        queue.push_back((next_lights, button_pressed | 1 << index, presses + 1));
-                    } else {
-                        return Some(presses + 1);
-                    }
+            if current_lights == 0 {
+                return Some(presses);
+            }
+            for (index, button) in self.buttons.iter().enumerate() {
+                if button_pressed & 1 << index == 1 {
+                    continue;
+                }
+                let next_lights = press_button(current_lights, button);
+                let button_pressed = button_pressed | 1 << index;
+                if visited.insert(next_lights) {
+                    queue.push_back((next_lights, button_pressed | 1 << index, presses + 1));
                 }
             }
         }
@@ -215,7 +215,6 @@ impl Machine {
         let t: Vec<Variable> = problem.add_all(vars);
         let objective: Expression = t.iter().sum();
         let mut model = problem.minimise(&objective).using(default_solver);
-        model.set_parameter("verbose", "false");
 
         for (row, &j) in f.iter().zip(&self.joltage) {
             let mut constraint: Expression = Expression::from(0);
