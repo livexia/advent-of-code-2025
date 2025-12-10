@@ -1,8 +1,10 @@
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::error::Error;
 use std::io::{self, Read};
 use std::str::FromStr;
 use std::time::Instant;
+
+use good_lp::{Expression, Solution, SolverModel, Variable, default_solver, variable, variables};
 
 #[allow(unused_macros)]
 macro_rules! err {
@@ -83,12 +85,11 @@ fn press_button(mut lights: u128, button: &[usize]) -> u128 {
 }
 
 impl Machine {
-    fn fewest_button_presses(&self) -> Option<usize> {
+    fn min_presses_for_lights(&self) -> Option<usize> {
         // BFS
 
         let mut queue = VecDeque::new();
         let mut visited = HashSet::new();
-        let button_mask = (0..self.buttons.len()).fold(0, |m, i| m | 1 << i);
 
         queue.push_back((self.lights, 0, 0));
 
@@ -101,9 +102,6 @@ impl Machine {
                     let next_lights = press_button(current_lights, button);
                     let button_pressed = button_pressed | 1 << index;
                     if next_lights != 0 {
-                        if button_pressed == button_mask {
-                            continue;
-                        }
                         queue.push_back((next_lights, button_pressed | 1 << index, presses + 1));
                     } else {
                         return Some(presses + 1);
@@ -114,6 +112,137 @@ impl Machine {
 
         None
     }
+
+    #[allow(dead_code)]
+    fn min_presses_for_joltage_bfs(&self) -> Option<usize> {
+        // BFS
+
+        let mut queue = VecDeque::new();
+        let mut visited = HashSet::new();
+
+        queue.push_back((self.joltage.clone(), vec![None; self.buttons.len()], 0));
+
+        while let Some((counter, button_pressed, presses)) = queue.pop_front() {
+            if visited.insert(button_pressed.to_vec()) {
+                for (index, button) in self.buttons.iter().enumerate() {
+                    if button_pressed[index].is_some() {
+                        continue;
+                    }
+                    let max_p = max_press(&counter, button);
+                    for p in 0..=max_p {
+                        let mut new_counter = counter.to_vec();
+                        let mut new_button_pressed = button_pressed.to_vec();
+                        new_button_pressed[index] = Some(p);
+                        for &b in button {
+                            new_counter[b] -= p;
+                        }
+                        if new_counter.iter().all(|j| j == &0) {
+                            return Some(presses + p);
+                        } else {
+                            queue.push_back((
+                                new_counter.to_vec(),
+                                new_button_pressed.to_vec(),
+                                presses + p,
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    #[allow(dead_code)]
+    fn min_presses_for_joltage_dfs(
+        &self,
+        counter: &[usize],
+        button_pressed: &[Option<usize>],
+        cache: &mut HashMap<Vec<Option<usize>>, usize>,
+    ) -> Option<usize> {
+        if counter.iter().all(|j| j == &0) {
+            return Some(0);
+        }
+        if button_pressed.iter().all(|b| b.is_some()) {
+            return None;
+        }
+        if let Some(p) = cache.get(button_pressed) {
+            if *p == usize::MAX {
+                return None;
+            }
+            return Some(*p);
+        }
+        let mut min_presses = usize::MAX;
+        for (b_index, button) in self.buttons.iter().enumerate() {
+            if button_pressed[b_index].is_some() {
+                // pressed
+                continue;
+            }
+            let max_p = max_press(counter, button);
+            for p in 0..=max_p {
+                let mut new_counter = counter.to_vec();
+                let mut new_button_pressed = button_pressed.to_vec();
+                new_button_pressed[b_index] = Some(p);
+                for &b in button {
+                    new_counter[b] -= p;
+                }
+                if let Some(pressed) =
+                    self.min_presses_for_joltage_dfs(&new_counter, &new_button_pressed, cache)
+                {
+                    min_presses = min_presses.min(p + pressed);
+                }
+            }
+        }
+        cache.insert(button_pressed.to_vec(), min_presses);
+        if min_presses != usize::MAX {
+            Some(min_presses)
+        } else {
+            None
+        }
+    }
+
+    fn min_presses_for_joltage_good_lp(&self) -> Option<usize> {
+        let f_count = self.joltage.len();
+        let b_count = self.buttons.len();
+        let mut f = vec![vec![0; b_count]; f_count];
+        for (index, button) in self.buttons.iter().enumerate() {
+            for &b in button {
+                f[b][index] = 1;
+            }
+        }
+        let mut problem = variables!();
+        let vars = vec![variable().min(0).integer(); b_count];
+        let t: Vec<Variable> = problem.add_all(vars);
+        let objective: Expression = t.iter().sum();
+        let mut model = problem.minimise(&objective).using(default_solver);
+        model.set_parameter("verbose", "false");
+
+        for (row, &j) in f.iter().zip(&self.joltage) {
+            let mut constraint: Expression = Expression::from(0);
+            for (&coeff, &var) in row.iter().zip(&t) {
+                if coeff == 1 {
+                    constraint += var;
+                }
+            }
+            model = model.with(constraint.eq(j as f64))
+        }
+        match model.solve() {
+            Ok(sol) => Some(sol.eval(objective).round() as usize),
+            Err(e) => {
+                println!("Solver error: {e:?}");
+                None
+            }
+        }
+    }
+}
+
+#[allow(dead_code)]
+fn max_press(joltage: &[usize], button: &[usize]) -> usize {
+    let mut m = usize::MAX;
+    for &b in button.iter() {
+        m = m.min(joltage[b]);
+    }
+    m
 }
 
 fn part1(machines: &[Machine]) -> Result<usize> {
@@ -121,10 +250,23 @@ fn part1(machines: &[Machine]) -> Result<usize> {
 
     let ans = machines
         .iter()
-        .filter_map(|m| m.fewest_button_presses())
+        .filter_map(|m| m.min_presses_for_lights())
         .sum();
 
     println!("part 1: {ans}");
+    println!("> Time elapsed is: {:?}", _start.elapsed());
+    Ok(ans)
+}
+
+fn part2(machines: &[Machine]) -> Result<usize> {
+    let _start = Instant::now();
+
+    let ans = machines
+        .iter()
+        .filter_map(|m| m.min_presses_for_joltage_good_lp())
+        .sum();
+
+    println!("part 2: {ans}");
     println!("> Time elapsed is: {:?}", _start.elapsed());
     Ok(ans)
 }
@@ -136,7 +278,7 @@ fn main() -> Result<()> {
     let machines = parse_input(input)?;
 
     part1(&machines)?;
-    // part2()?;
+    part2(&machines)?;
     Ok(())
 }
 
@@ -147,6 +289,7 @@ fn example_input() -> Result<()> {
 [.###.#] (0,1,2,3,4) (0,3,4) (0,1,2,4,5) (1,2) {10,11,11,5,10,5}";
     let machines = parse_input(input)?;
     assert_eq!(part1(&machines).unwrap(), 7);
+    assert_eq!(part2(&machines).unwrap(), 33);
     Ok(())
 }
 
@@ -155,5 +298,6 @@ fn real_input() -> Result<()> {
     let input = std::fs::read_to_string("input/input.txt").unwrap();
     let machines = parse_input(input)?;
     assert_eq!(part1(&machines).unwrap(), 488);
+    assert_eq!(part2(&machines).unwrap(), 18771);
     Ok(())
 }
