@@ -111,18 +111,79 @@ fn part1(connections: &Connections) -> Result<usize> {
     Ok(count)
 }
 
+fn part2_dfs(
+    current: usize,
+    target: usize,
+    visited: u8,
+    dac_fft: &[usize],
+    connections: &Connections,
+    cache: &mut HashMap<(usize, u8), usize>,
+) -> usize {
+    if visited == 3 && current == target {
+        return 1;
+    }
+    if let Some(count) = cache.get(&(current, visited)) {
+        return *count;
+    }
+    let mut count = 0;
+    if let Some(outputs) = connections.get_outputs(current) {
+        for &next in outputs {
+            let next_visited = visited
+                | if next == dac_fft[0] {
+                    1
+                } else if next == dac_fft[1] {
+                    2
+                } else {
+                    0
+                };
+            count += part2_dfs(next, target, next_visited, dac_fft, connections, cache);
+        }
+    }
+    cache.insert((current, visited), count);
+    count
+}
+
+fn part2(connections: &Connections) -> Result<usize> {
+    let _start = Instant::now();
+
+    let &svr_id = connections
+        .get_id("svr")
+        .ok_or("unable to find device with name: svr")?;
+    let &out_id = connections
+        .get_id("out")
+        .ok_or("unable to find device with name: out")?;
+    let dac_fft: Vec<_> = ["dac", "fft"]
+        .iter()
+        .map(|d| *connections.get_id(d).unwrap())
+        .collect();
+    println!("{dac_fft:?}");
+
+    let count = part2_dfs(
+        svr_id,
+        out_id,
+        0,
+        &dac_fft,
+        connections,
+        &mut HashMap::new(),
+    );
+
+    println!("part 2: {count}");
+    println!("> Time elapsed is: {:?}", _start.elapsed());
+    Ok(count)
+}
+
 fn main() -> Result<()> {
     let mut input = String::new();
     io::stdin().read_to_string(&mut input)?;
 
     let connections = parse_input(input)?;
     part1(&connections)?;
-    // part2()?;
+    part2(&connections)?;
     Ok(())
 }
 
 #[test]
-fn example_input() -> Result<()> {
+fn example_input_part1() -> Result<()> {
     let input = "aaa: you hhh
 you: bbb ccc
 bbb: ddd eee
@@ -139,9 +200,30 @@ iii: out";
 }
 
 #[test]
+fn example_input_part2() -> Result<()> {
+    let input = "svr: aaa bbb
+aaa: fft
+fft: ccc
+bbb: tty
+tty: ccc
+ccc: ddd eee
+ddd: hub
+hub: fff
+eee: dac
+dac: fff
+fff: ggg hhh
+ggg: out
+hhh: out";
+    let connections = parse_input(input)?;
+    assert_eq!(part2(&connections).unwrap(), 2);
+    Ok(())
+}
+
+#[test]
 fn real_input() -> Result<()> {
     let input = std::fs::read_to_string("input/input.txt").unwrap();
     let connections = parse_input(input)?;
     assert_eq!(part1(&connections).unwrap(), 658);
+    assert_eq!(part2(&connections).unwrap(), 371113003846800);
     Ok(())
 }
