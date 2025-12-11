@@ -12,162 +12,188 @@ type Result<T> = ::std::result::Result<T, Box<dyn Error>>;
 
 #[derive(Debug)]
 struct Connections {
-    index_table: HashMap<usize, String>,
     device_table: HashMap<String, usize>,
-    connection_table: HashMap<usize, Vec<usize>>,
+    adj_list: Vec<Vec<usize>>,
 }
 
 impl Connections {
     fn new() -> Self {
         Self {
-            index_table: HashMap::new(),
             device_table: HashMap::new(),
-            connection_table: HashMap::new(),
+            adj_list: Vec::new(),
         }
     }
 
-    fn adding_connection(&mut self, connc: &str) -> Result<()> {
-        if let Some((input, outputs)) = connc.split_once(":") {
+    fn add_connection(&mut self, line: &str) -> Result<()> {
+        if let Some((input, outputs)) = line.split_once(":") {
             let input_id = self.insert_device(input.trim());
             let output_ids = outputs
                 .split_whitespace()
                 .map(|d| self.insert_device(d))
                 .collect();
-            self.connection_table.insert(input_id, output_ids);
+            if input_id >= self.adj_list.len() {
+                self.adj_list.resize(input_id + 1, vec![]);
+            }
+            self.adj_list[input_id] = output_ids;
             return Ok(());
         }
-        err!("unable to parse connection: {connc:?}")
+        err!("unable to parse connection: {line:?}")
     }
 
     fn insert_device(&mut self, dev: &str) -> usize {
         if let Some(id) = self.device_table.get(dev) {
             *id
         } else {
-            let id = self.index_table.len();
-            self.index_table.insert(id, dev.to_string());
+            let id = self.device_table.len();
             self.device_table.insert(dev.to_string(), id);
             id
         }
     }
 
-    #[allow(dead_code)]
-    fn get_device(&self, id: usize) -> Option<&String> {
-        self.index_table.get(&id)
+    fn get_id(&self, dev: &str) -> Option<usize> {
+        self.device_table.get(dev).copied()
     }
 
-    fn get_id(&self, dev: &str) -> Option<&usize> {
-        self.device_table.get(dev)
-    }
-
-    fn get_outputs(&self, id: usize) -> Option<&Vec<usize>> {
-        self.connection_table.get(&id)
+    fn get_outputs(&self, id: usize) -> &[usize] {
+        if id < self.adj_list.len() {
+            &self.adj_list[id]
+        } else {
+            &[]
+        }
     }
 }
 fn parse_input<T: AsRef<str>>(input: T) -> Result<Connections> {
     let mut connections = Connections::new();
     for line in input.as_ref().lines().filter(|l| !l.trim().is_empty()) {
-        connections.adding_connection(line)?;
+        connections.add_connection(line)?;
     }
     Ok(connections)
 }
 
-fn count_path_dfs(
+fn count_paths_dfs(
     current: usize,
     target: usize,
     connections: &Connections,
-    cache: &mut HashMap<usize, usize>,
+    cache: &mut [Option<usize>],
 ) -> usize {
     if current == target {
         return 1;
     }
-    if let Some(count) = cache.get(&current) {
-        return *count;
+    if let Some(count) = cache[current] {
+        return count;
     }
 
     let mut count = 0;
-    if let Some(outputs) = connections.get_outputs(current) {
-        for &next in outputs {
-            count += count_path_dfs(next, target, connections, cache);
-        }
+    for &next in connections.get_outputs(current) {
+        count += count_paths_dfs(next, target, connections, cache);
     }
-    cache.insert(current, count);
+    cache[current] = Some(count);
     count
 }
 
 fn part1(connections: &Connections) -> Result<usize> {
     let _start = Instant::now();
 
-    let &you_id = connections
-        .get_id("you")
-        .ok_or("unable to find device with name: you")?;
-    let &out_id = connections
-        .get_id("out")
-        .ok_or("unable to find device with name: out")?;
+    let you = connections.get_id("you").ok_or("node 'you' not found")?;
+    let out = connections.get_id("out").ok_or("node 'out' not found")?;
 
-    let count = count_path_dfs(you_id, out_id, connections, &mut HashMap::new());
+    let count = count_paths_dfs(
+        you,
+        out,
+        connections,
+        &mut vec![None; connections.device_table.len()],
+    );
 
     println!("part 1: {count}");
     println!("> Time elapsed is: {:?}", _start.elapsed());
     Ok(count)
 }
 
-fn part2_dfs(
+fn count_paths_with_dac_fft(
     current: usize,
     target: usize,
-    visited: u8,
+    visited_mask: u8,
     dac_fft: &[usize],
     connections: &Connections,
-    cache: &mut HashMap<(usize, u8), usize>,
+    cache: &mut [Option<usize>],
 ) -> usize {
-    if visited == 3 && current == target {
+    if visited_mask == 3 && current == target {
         return 1;
     }
-    if let Some(count) = cache.get(&(current, visited)) {
-        return *count;
+    if let Some(count) = cache[current * 4 + visited_mask as usize] {
+        return count;
     }
     let mut count = 0;
-    if let Some(outputs) = connections.get_outputs(current) {
-        for &next in outputs {
-            let next_visited = visited
-                | if next == dac_fft[0] {
-                    1
-                } else if next == dac_fft[1] {
-                    2
-                } else {
-                    0
-                };
-            count += part2_dfs(next, target, next_visited, dac_fft, connections, cache);
-        }
+    for &next in connections.get_outputs(current) {
+        let next_mask = visited_mask
+            | if next == dac_fft[0] {
+                1
+            } else if next == dac_fft[1] {
+                2
+            } else {
+                0
+            };
+        count += count_paths_with_dac_fft(next, target, next_mask, dac_fft, connections, cache);
     }
-    cache.insert((current, visited), count);
+    cache[current * 4 + visited_mask as usize] = Some(count);
     count
 }
 
 fn part2(connections: &Connections) -> Result<usize> {
     let _start = Instant::now();
 
-    let &svr_id = connections
-        .get_id("svr")
-        .ok_or("unable to find device with name: svr")?;
-    let &out_id = connections
-        .get_id("out")
-        .ok_or("unable to find device with name: out")?;
-    let dac_fft: Vec<_> = ["dac", "fft"]
-        .iter()
-        .map(|d| *connections.get_id(d).unwrap())
-        .collect();
-    println!("{dac_fft:?}");
+    let svr = connections.get_id("svr").ok_or("node 'svr' not found")?;
+    let out = connections.get_id("out").ok_or("node 'out' not found")?;
+    let dac = connections.get_id("dac").ok_or("node 'dac' not found")?;
+    let fft = connections.get_id("fft").ok_or("node 'fft' not found")?;
 
-    let count = part2_dfs(
-        svr_id,
-        out_id,
+    let count = count_paths_with_dac_fft(
+        svr,
+        out,
         0,
-        &dac_fft,
+        &[dac, fft],
         connections,
-        &mut HashMap::new(),
+        &mut vec![None; connections.device_table.len() * 4],
     );
 
     println!("part 2: {count}");
+    println!("> Time elapsed is: {:?}", _start.elapsed());
+    Ok(count)
+}
+
+fn part2_segmented(connections: &Connections) -> Result<usize> {
+    let _start = Instant::now();
+
+    let svr = connections.get_id("svr").ok_or("node 'svr' not found")?;
+    let out = connections.get_id("out").ok_or("node 'out' not found")?;
+    let dac = connections.get_id("dac").ok_or("node 'dac' not found")?;
+    let fft = connections.get_id("fft").ok_or("node 'fft' not found")?;
+
+    let count_between = |start, end| {
+        count_paths_dfs(
+            start,
+            end,
+            connections,
+            &mut vec![None; connections.device_table.len()],
+        )
+    };
+
+    let mut count = 0;
+    // svr -> dac -> fft -> out
+    let dac_fft = count_between(dac, fft);
+    if dac_fft != 0 {
+        let svr_dac = count_between(svr, dac);
+        let fft_out = count_between(fft, out);
+        count = svr_dac * dac_fft * fft_out;
+    }
+    // svt -> fft -> dac -> out
+    let fft_dac = count_between(fft, dac);
+    if fft_dac != 0 {
+        let svr_fft = count_between(svr, fft);
+        let dac_out = count_between(dac, out);
+        count += svr_fft * fft_dac * dac_out;
+    }
+    println!("part 2 with count segmented paths: {count}");
     println!("> Time elapsed is: {:?}", _start.elapsed());
     Ok(count)
 }
@@ -179,6 +205,7 @@ fn main() -> Result<()> {
     let connections = parse_input(input)?;
     part1(&connections)?;
     part2(&connections)?;
+    part2_segmented(&connections)?;
     Ok(())
 }
 
@@ -216,6 +243,7 @@ ggg: out
 hhh: out";
     let connections = parse_input(input)?;
     assert_eq!(part2(&connections).unwrap(), 2);
+    assert_eq!(part2_segmented(&connections).unwrap(), 2);
     Ok(())
 }
 
@@ -225,5 +253,6 @@ fn real_input() -> Result<()> {
     let connections = parse_input(input)?;
     assert_eq!(part1(&connections).unwrap(), 658);
     assert_eq!(part2(&connections).unwrap(), 371113003846800);
+    assert_eq!(part2_segmented(&connections).unwrap(), 371113003846800);
     Ok(())
 }

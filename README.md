@@ -985,3 +985,224 @@ fn min_presses_for_joltage_good_lp(&self) -> Option<usize> {
 1.  **独立解决**：在 Part 1 中通过修正 BFS 去重逻辑，独立实现了清晰可靠的解法。
 2.  **受阻转向**：在 Part 2 搜索失效后，及时止损，转向数学建模。
 3.  **未来方向**：从调用 API 转向掌握核心算法，补全线性代数与数值计算的知识盲区。
+
+## Day 11 
+
+### 1\. 初步分析与起步
+
+**题目目标**：解析设备连接关系（格式为 `id: out1 out2 ...`），构建有向图，并计算从起点到终点的路径数量。
+
+**初始技术选型**：
+为了快速验证逻辑，起初采用了最直观的哈希表实现：
+
+1.  **图存储**：使用 `HashMap<usize, Vec<usize>>` 存储邻接表。虽然存在哈希计算开销，但无需关心节点 ID 的稀疏性和插入顺序。
+2.  **ID 映射**：使用 `HashMap<String, usize>` 将字符串转为数字 ID。
+
+### 2\. Part 1: 基础路径计数 (DFS + HashMap 缓存)
+
+第一部分是标准的路径计数问题（从 `you` 到 `out`）。
+
+### 算法逻辑
+
+采用**记忆化深度优先搜索 (Memoized DFS)**。
+
+1.  **基准情况**：如果当前节点 `current` 等于目标 `target`，返回 1。
+2.  **缓存检查**：检查 `cache` 是否已存在当前节点的计算结果。
+3.  **递归推进**：遍历当前节点的所有输出节点 `next`，递归调用并将结果累加。
+
+#### 核心代码
+
+```rust
+fn count_paths_dfs(
+    current: usize,
+    target: usize,
+    connections: &Connections,
+    cache: &mut HashMap<usize, usize>, // 初始版本使用 HashMap
+) -> usize {
+    if current == target {
+        return 1;
+    }
+    if let Some(count) = cache.get(&current) {
+        return *count;
+    }
+
+    let mut count = 0;
+    for &next in connections.get_outputs(current) {
+        count += count_paths_dfs(next, target, connections, cache);
+    }
+    cache.insert(current, count);
+    count
+}
+```
+
+### 3\. Part 2: 引入约束与算法演进
+
+第二部分要求路径必须经过 `dac` 和 `fft` 两个特定节点。对此我探索了两种解法。
+
+#### 方法一：状态压缩 DFS (State Compression)
+
+在 DFS 中引入位掩码 `visited_mask` 来追踪必经点的访问状态。
+
+**算法逻辑**：
+
+  * **状态定义**：`(current, mask)`。`mask` 的第 0 位代表 `dac`，第 1 位代表 `fft`。
+  * **状态转移**：在遍历子节点时，使用位运算 `|` 更新掩码。
+  * **有效判定**：只有当 `mask == 3` (二进制 `11`) 且到达终点时，才返回 1。
+
+**核心代码**：
+
+```rust
+fn count_paths_with_dac_fft(
+    current: usize,
+    target: usize,
+    visited_mask: u8,
+    dac_fft: &[usize],
+    connections: &Connections,
+    cache: &mut HashMap<(usize, u8), usize>,
+) -> usize {
+    // 只有经过了所有必经点 (mask == 3) 到达终点才算数
+    if visited_mask == 3 && current == target {
+        return 1;
+    }
+    if let Some(count) = cache.get(&(current, visited_mask)) {
+        return *count;
+    }
+
+    let mut count = 0;
+    for &next in connections.get_outputs(current) {
+        let next_mask = visited_mask
+            | if next == dac_fft[0] { 1 } else if next == dac_fft[1] { 2 } else { 0 };
+        count += count_paths_with_dac_fft(next, target, next_mask, dac_fft, connections, cache);
+    }
+    cache.insert((current, visited_mask), count);
+    count
+}
+```
+
+#### 方法二：分段路径计数 (Segmented Path Counting)
+
+利用路径的拓扑特性将长路径拆分。路径只可能是 `svr->dac->fft->out` 或 `svr->fft->dac->out`。
+
+**算法逻辑**：
+
+1.  **路径分解**：复用 Part 1 的通用 DFS 函数，分别计算每段路径的数量。
+2.  **关键实现**：定义闭包 `count_between` 来封装带缓存初始化的 DFS 调用。
+3.  **累加逻辑**：分别计算“先过 dac”和“先过 fft”两种情况，并将结果**累加**。
+
+**核心代码**：
+
+```rust
+// 关键闭包：封装每次独立的路径计算，确保缓存隔离
+let count_between = |start, end| {
+    // 每次调用都初始化一个新的缓存
+    count_paths_dfs(start, end, connections, &mut HashMap::new())
+};
+
+let mut count = 0;
+
+// 情况 1: svr -> dac -> fft -> out
+let dac_fft = count_between(dac, fft);
+if dac_fft != 0 {
+    let svr_dac = count_between(svr, dac);
+    let fft_out = count_between(fft, out);
+    count += svr_dac * dac_fft * fft_out;
+}
+
+// 情况 2: svr -> fft -> dac -> out
+let fft_dac = count_between(fft, dac);
+if fft_dac != 0 {
+    let svr_fft = count_between(svr, fft);
+    let dac_out = count_between(dac, out);
+    count += svr_fft * fft_dac * dac_out; // 修正：使用 += 累加
+}
+```
+
+#### 复杂度对比分析
+
+假设图顶点数为 $V$，边数为 $E$，必经点数量为 $K=2$。
+
+| 维度 | 方法一：状态压缩 (State DFS) | 方法二：分段计数 (Segmented) |
+| :--- | :--- | :--- |
+| **时间复杂度** | $O(2^K \cdot (V+E))$ | $O(K! \cdot (V+E))$ |
+| **本题情况 ($K=2$)** | $O(4 \cdot (V+E))$ | $O(6 \cdot (V+E))$ |
+| **空间复杂度** | $O(2^K \cdot V)$ (缓存所有状态) | $O(V)$ (每次仅缓存当前段) |
+
+**实际运行效率总结**：
+尽管两种方法在理论常数上略有差异（4 vs 6），但由于本题中必经点数量极少 ($K=2$)，这部分的计算开销相对于图遍历本身是非常小的。**在实际代码运行中，两种方法的耗时几乎一致**，都能够快速求解。
+
+### 4\. 重构：利用数组操作替换哈希操作
+
+在逻辑跑通后，为了追求运行效率，我对底层数据结构进行了全面重构，利用 `Vec` 的索引操作全面替换了 `HashMap` 的哈希操作。
+
+#### 优化一：图存储结构的 Vec 化
+
+考虑到设备 ID 是从 0 开始连续分配的，`Vec` 的索引访问远优于哈希查找。
+
+  * **结构变更**：
+
+      * 旧：`adj_list: HashMap<usize, Vec<usize>>`
+      * 新：`adj_list: Vec<Vec<usize>>`
+
+  * **实现细节**：
+    `Vec` 需要管理容量。在 `add_connection` 中加入了自动扩容逻辑：
+
+    ```rust
+    if input_id >= self.adj_list.len() {
+        self.adj_list.resize(input_id + 1, vec![]);
+    }
+    ```
+
+#### 优化二：缓存结构的 Vec 化
+
+这一步优化的核心在于**可行性分析**。
+
+  * **可行性分析**：
+    在预处理阶段，我们采用了“自增整数”的方式分配设备 ID（0, 1, 2... N）。这意味着所有的状态标识符都是**连续且紧凑**的整数。这种数据特性完美契合数组（Vec）的内存布局，使得我们可以直接使用 ID 作为下标，而不会造成内存浪费（即不存在稀疏数组问题）。
+
+  * **Part 1 缓存优化**：
+    将 `HashMap<usize, usize>` 替换为 `Vec<Option<usize>>`。
+
+  * **Part 2 状态缓存优化 (Flat Map)**：
+    虽然状态是二维的 `(node, mask)`，但 `mask` 取值范围固定为 $0-3$。我们可以利用这一特性进行扁平化映射。
+
+      * **映射公式**：`index = node * 4 + mask`
+      * **优势**：将复合键的哈希查找转换为极速的整数乘加运算。
+
+#### 数据结构性能对比
+
+| 特性 | HashMap (优化前) | Vec (优化后) |
+| :--- | :--- | :--- |
+| **查找复杂度** | 平均 $O(1)$，最差 $O(N)$ | 严格 $O(1)$ |
+| **常数开销** | **高** (哈希计算 + 解决冲突) | **极低** (仅内存偏移) |
+| **内存布局** | 分散 (Cache Locality 差) | 连续紧凑 (Cache Locality 好) |
+| **实现复杂度** | 低 (自动处理稀疏 ID) | 中 (需手动处理 Resize) |
+
+**优化总结**：虽然 `Vec` 需要额外处理扩容和边界检查，但消除哈希开销带来的性能收益是巨大的，特别是对于需要数百万次递归调用的 DFS 算法而言。
+
+### 5\. 总结与反思
+
+#### 初见题目的“环路担忧”
+
+在刚看到这道题时，我的第一反应是输入数据中可能包含环路。
+
+  * **最初的设想**：Part 1 可能因为运气好避开了环，但 Part 2 强制经过特定点，可能会陷入环路陷阱。我甚至预想可能需要先进行“破环”（移除某条连接）预处理，再计算路径。
+  * **最终的验证**：事实证明这份担忧是多余的。代码在没有环路检测机制的情况下顺利运行且无栈溢出，这反向验证了题目隐含了一个关键约束——输入数据是一个**有向无环图 (DAG)**。
+
+#### 方法论复盘：为何直觉指向了 DFS？
+
+在选择算法时，直觉引导我选择了 DFS 而非 BFS。这并非巧合，而是由本题“路径计数”和“状态约束”的特性决定的：
+
+1.  **问题语义的匹配 (Path vs Layer)**：
+      * **DFS** 是面向**路径**的搜索。它的执行过程本身就是一条从起点扎向终点的完整路径，这与题目“寻找有多少条路径”的语义完全一致。
+      * **BFS** 是面向**层级**的搜索。它擅长处理“最短路径”问题。若要用于计数，必须显式地进行**拓扑排序**（计算入度、等待依赖就绪），否则无法正确累加路径数。在 DFS 中，递归的返回顺序天然就是拓扑序，省去了这一步骤。
+2.  **状态管理的成本 (Implicit vs Explicit)**：
+      * 在 Part 2 中，我们需要维护 `visited_mask`。
+      * **DFS**：`mask` 仅仅是递归函数的一个参数。递归栈自动帮我们保存了每一层的状态，当递归返回（回溯）时，状态自动恢复。
+      * **BFS**：我们需要在队列中显式存储 `(node, mask)` 元组。这不仅增加了内存开销，还需要在入队/出队时手动管理状态的流转和分支。
+
+#### 技术收获
+
+今天的题目虽然难度被归为“放松题”，但它是一个绝佳的工程化演练场。
+
+  * **算法维度**：从通用的“状态压缩”到利用拓扑特性的“分段计数”，展示了针对 DAG 特性寻找更优解的思路。
+  * **数据维度**：从“能用”的哈希表到“极致”的数组操作，展示了在数据紧凑连续的前提下，如何通过底层内存优化来压榨程序的极限性能。
