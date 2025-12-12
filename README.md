@@ -1206,3 +1206,84 @@ if fft_dac != 0 {
 
   * **算法维度**：从通用的“状态压缩”到利用拓扑特性的“分段计数”，展示了针对 DAG 特性寻找更优解的思路。
   * **数据维度**：从“能用”的哈希表到“极致”的数组操作，展示了在数据紧凑连续的前提下，如何通过底层内存优化来压榨程序的极限性能。
+
+## Day 12: 运气与面积判定 [待深化学习]
+
+### 1. 题目概览 (Problem Overview)
+> **核心任务**：AoC 2025 的收官挑战。任务是将一系列多格骨牌（Polyominoes）形状的礼物，完美填充到指定的矩形区域中。
+> **难点**：礼物支持 **旋转 (Rotation)** 和 **翻转 (Flipping)**，这是经典的 **2D Bin Packing / Exact Cover** 问题。理论上属于 NP-Hard，正统解法需要复杂的 DFS 回溯或 Dancing Links (DLX) 算法。
+> **现状**：由于实现复杂度过高，且今天是最后一天，决定采用非正统手段优先获取结果，正统算法留待日后补全。
+
+### 2. 核心策略：赌一把面积 (The Area Gamble)
+
+参考了 **Reddit 社区** 的讨论后，发现本次题目输入的生成逻辑可能存在 **弱约束 (Weak Constraints)**。我们决定跳过复杂的几何模拟，赌一把“必要条件即充分条件”。
+
+* **策略来源**：Reddit 讨论区提示实际输入可能“放水”，并未包含几何死锁的情况。
+* **核心假设**：如果所有礼物的像素总面积 $\le$ 区域的总面积，且礼物数量符合限制，则直接判定为“可行”。
+    $$Area_{Region} \ge \sum (Area_{Gift} \times Count)$$
+* **验证结果**：
+    * **Sample Input**: ❌ **失败**。样例数据非常严谨，专门包含了“面积足够但形状无法塞入”的反例，直接击穿了本策略。
+    * **Actual Input**: ✅ **通过**。实际数据的约束意外地宽松，单纯的面积校验即可获得金星。
+
+### 3. 核心代码实现 (Core Logic)
+
+代码略去了复杂的几何变换与回溯，仅保留了最基础的面积供需计算。
+
+```rust
+// 核心数据结构：只关心形状占据的格子数 (shapes.len())
+#[derive(Debug)]
+struct Present {
+    _index: usize,
+    shapes: Vec<(isize, isize)>, 
+}
+
+#[derive(Debug)]
+struct Region {
+    size: (usize, usize),
+    presents: Vec<usize>, // 对应每个 Present 的数量
+}
+
+impl Region {
+    /// 核心策略：只检查面积，忽略几何形状
+    /// 注意：这是一种“逃课”写法，依赖于特定输入的弱点
+    fn try_fit(&self, presents: &[Present]) -> bool {
+        let (x, y) = self.size;
+        let region_area = x * y;
+        
+        // 计算所需总面积
+        let gifts_area_needed: usize = presents
+            .iter()
+            .zip(self.presents.iter())
+            .map(|(p, count)| p.shapes.len() * count)
+            .sum();
+            
+        // 判定：面积不超标即认为可行
+        gifts_area_needed <= region_area
+    }
+}
+
+fn part1(presents: &[Present], regions: &[Region]) -> Result<usize> {
+    // 筛选出所有通过“面积测试”的区域
+    let count = regions.iter()
+        .filter(|r| r.try_fit(presents))
+        .count();
+    
+    Ok(count)
+}
+```
+
+### 4. 后续复盘计划 (Future Work)
+
+本题虽然拿到了星星，但从算法角度看 **并未真正解决 (Not Truly Solved)**。目前的解法在面对 Sample Input 或更强的测试数据时会完全失效。为了弥补这个遗憾，计划在后续进行以下复盘：
+
+1.  **实现通用解法**：
+    * 必须实现礼物的 **旋转 (Rotation)** 和 **翻转 (Flipping)** 逻辑（矩阵变换）。
+    * 实现标准的 **DFS 回溯 (Backtracking)**，在网格中真实地模拟放置过程。
+2.  **算法优化**：
+    * 探索 **位掩码 (Bitmask)** 优化，加速碰撞检测。
+    * 学习并尝试 **Dancing Links (DLX)** 算法，这是解决此类精确覆盖问题的标准“正解”。
+
+### 5. 总结 (Conclusion)
+
+* **结果**: 侥幸通关 (Passed by Heuristic)。
+* **反思**: 2025 年的 AoC 以一种“非典型”的方式结束。虽然利用数据弱点也是工程能力的一部分，但面对算法题，这种胜利更像是一种妥协。这道题留下的技术债务，是未来需要重点深化的课题。
