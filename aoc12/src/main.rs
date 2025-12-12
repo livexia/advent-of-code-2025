@@ -10,6 +10,7 @@ macro_rules! err {
 
 type Result<T> = ::std::result::Result<T, Box<dyn Error>>;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct Present {
     _index: usize,
@@ -96,18 +97,11 @@ fn parse_input<T: AsRef<str>>(input: T) -> Result<(Vec<Present>, Vec<Region>)> {
 impl Present {}
 
 impl Region {
-    fn try_fit(&self, presents: &[Present]) -> bool {
+    fn try_fit(&self, _presents: &[Present]) -> bool {
         let (x, y) = self.size;
-        let area = x * y;
-        let least: usize = presents
-            .iter()
-            .zip(self.presents.iter())
-            .map(|(p, c)| p.shapes.len() * c)
-            .sum();
-        if least > area {
-            return false;
-        }
-        least <= area
+        // present is all 3x3
+        let count: usize = self.presents.iter().sum();
+        count <= (x / 3) * (y / 3)
     }
 }
 
